@@ -32,6 +32,19 @@ class image_proc():
 			print(e)
 			return
 
+	# To decode qr code and find destination coordinates
+	def qr_scan(self):
+
+		# TODO decode qr
+
+		pass
+
+
+
 if __name__ == '__main__':
     image_proc_obj = image_proc()
     rospy.spin()
+    
+    # running appropriate function continuously in loop
+    while not rospy.is_shutdown():
+        e_drone.pid()
