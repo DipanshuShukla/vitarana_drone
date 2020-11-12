@@ -9,6 +9,7 @@ Use this code snippet in your code or you can also continue adding your code in 
 
 # 			PUBLICATIONS				SUBSCRIPTIONS
 # 		/destination_coordinates			/qr_command
+#		/qr_status
 
 
 from sensor_msgs.msg import Image
@@ -38,13 +39,19 @@ class image_proc():
 		self.scan = False
 
 		# scanned coordinates
-		self.
+		self.destination_coordinates = GeoPoint()
+		self.destination_coordinates.latitude = 0.0
+		self.destination_coordinates.longitude = 0.0
+		self.destination_coordinates.altitude = 0.0
+
+
 
 		# Subscribing to /qr_command
 		rospy.Subscriber("/qr_command", Bool, self.qr_command_callback)
 
-		# Publishing /destination_coordinates
-        self.cmd_pub = rospy.Publisher("/destination_coordinates", GeoPoint, queue_size=1)
+		# Publishing /destination_coordinates, /qr_status
+        self.coordinates_pub = rospy.Publisher("/destination_coordinates", GeoPoint, queue_size=1)
+        self.qr_status_pub = rospy.Publisher("/qr_status", Bool, queue_size=1)
 
 
 
@@ -66,7 +73,9 @@ class image_proc():
 
 		# TODO decode qr
 
-		pass
+		# publishing required results
+		self.coordinates_pub.publish(self.destination_coordinates)
+		self.qr_status_pub.publish(self.qr_status)
 
 
 
