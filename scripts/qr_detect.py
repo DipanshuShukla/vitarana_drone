@@ -64,8 +64,8 @@ class image_proc():
 			return
 
 	# Callback function for qr command
-	def qr_command_callback(self, data):
-		self.scan = data
+	def qr_command_callback(self, input):
+		self.scan = input.data
 
 
 	# To decode qr code and find destination coordinates
