@@ -18,6 +18,7 @@ import numpy as np
 import rospy
 
 from std_msgs.msg import Bool
+from geographic_msgs.msg import GeoPoint
 
 
 
@@ -26,15 +27,24 @@ class image_proc():
 	# Initialise everything
 	def __init__(self):
 		rospy.init_node('barcode_test') #Initialise rosnode 
-		self.image_sub = rospy.Subscriber("/edrone/camera/image_raw", Image, self.image_callback) #Subscribing to the camera topic
+
+		# Subscribing to /edrone/camera/image_raw 
+		rospy.Subscriber("/edrone/camera/image_raw", Image, self.image_callback) #Subscribing to the camera topic
+
 		self.img = np.empty([]) # This will contain your image frame from camera
 		self.bridge = CvBridge()
 
 		# to know when to scan
 		self.scan = False
 
+		# scanned coordinates
+		self.
+
 		# Subscribing to /qr_command
 		rospy.Subscriber("/qr_command", Bool, self.qr_command_callback)
+
+		# Publishing /destination_coordinates
+        self.cmd_pub = rospy.Publisher("/destination_coordinates", GeoPoint, queue_size=1)
 
 
 
