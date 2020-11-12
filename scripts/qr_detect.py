@@ -7,12 +7,19 @@ and store it into an OpenCV image to use it further for image processing tasks.
 Use this code snippet in your code or you can also continue adding your code in the same file
 '''
 
+# 			PUBLICATIONS				SUBSCRIPTIONS
+# 		/destination_coordinates			/qr_command
+
 
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge, CvBridgeError
 import cv2
 import numpy as np
 import rospy
+
+from std_msgs.msg import Bool
+
+
 
 class image_proc():
 
@@ -23,14 +30,26 @@ class image_proc():
 		self.img = np.empty([]) # This will contain your image frame from camera
 		self.bridge = CvBridge()
 
+		# to know when to scan
+		self.scan = False
 
-	# Callback function of amera topic
+		# Subscribing to /qr_command
+		rospy.Subscriber("/qr_command", Bool, self.qr_command_callback)
+
+
+
+	# Callback function of camera topic
 	def image_callback(self, data):
 		try:
 			self.img = self.bridge.imgmsg_to_cv2(data, "bgr8") # Converting the image to OpenCV standard image
 		except CvBridgeError as e:
 			print(e)
 			return
+
+	# Callback function for qr command
+	def qr_command_callback(self, data):
+		self.scan = data
+
 
 	# To decode qr code and find destination coordinates
 	def qr_scan(self):
@@ -42,9 +61,9 @@ class image_proc():
 
 
 if __name__ == '__main__':
-    image_proc_obj = image_proc()
-    rospy.spin()
-    
-    # running appropriate function continuously in loop
-    while not rospy.is_shutdown():
-        e_drone.pid()
+	image_proc_obj = image_proc()
+	rospy.spin()
+	
+	# running appropriate function continuously in loop
+	while not rospy.is_shutdown():
+		e_drone.pid()
