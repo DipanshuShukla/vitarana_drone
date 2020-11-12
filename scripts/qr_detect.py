@@ -18,6 +18,8 @@ import cv2
 import numpy as np
 import rospy
 
+from pyzbar.pyzbar import decode
+
 from std_msgs.msg import Bool
 from geometry_msgs.msg import Vector3
 
