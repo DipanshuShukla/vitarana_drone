@@ -25,9 +25,9 @@ class Control:
         self.drone_position = [0.0, 0.0, 0.0]  # [lat, long, alt]
 
         self.target_position = [
-            [19.0, 72.0, 3.0],
             [19.0000451704, 72.0, 3.0],
-            [19.0000451704, 72.0, 0.31],
+            [19.0, 72.0, 3.0],
+            [19.0, 72.0, 0.31],
         ]  # [lat, long, alt]
 
         self.location_index = 0
