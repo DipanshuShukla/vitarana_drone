@@ -19,7 +19,7 @@ import numpy as np
 import rospy
 
 from std_msgs.msg import Bool
-from geographic_msgs.msg import GeoPoint
+from geometry_msgs.msg import Vector3
 
 
 
@@ -38,11 +38,11 @@ class image_proc():
 		# to know when to scan
 		self.scan = False
 
-		# scanned coordinates
-		self.destination_coordinates = GeoPoint()
-		self.destination_coordinates.latitude = 0.0
-		self.destination_coordinates.longitude = 0.0
-		self.destination_coordinates.altitude = 0.0
+		# scanned coordinates x = lat, y = long, z = alt
+		self.destination_coordinates = Vector3()
+		self.destination_coordinates.x = 0.0
+		self.destination_coordinates.y = 0.0
+		self.destination_coordinates.z = 0.0
 
 
 
@@ -50,8 +50,8 @@ class image_proc():
 		rospy.Subscriber("/qr_command", Bool, self.qr_command_callback)
 
 		# Publishing /destination_coordinates, /qr_status
-        self.coordinates_pub = rospy.Publisher("/destination_coordinates", GeoPoint, queue_size=1)
-        self.qr_status_pub = rospy.Publisher("/qr_status", Bool, queue_size=1)
+		self.coordinates_pub = rospy.Publisher("/destination_coordinates", Vector3, queue_size=1)
+		self.qr_status_pub = rospy.Publisher("/qr_status", Bool, queue_size=1)
 
 
 
