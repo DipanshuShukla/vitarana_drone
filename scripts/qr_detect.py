@@ -85,4 +85,4 @@ if __name__ == '__main__':
 	
 	# running appropriate function continuously in loop
 	while not rospy.is_shutdown():
-		e_drone.pid()
+		e_drone.qr_scan()
