@@ -24,14 +24,18 @@ class Control:
 
         self.drone_position = [0.0, 0.0, 0.0]  # [lat, long, alt]
 
-        self.target_position = []  # [lat, long, alt]
+        self.target_position = [[19.0009248718, 71.9998318945, 22.16 + 2]]  # [lat, long, alt]
+        #self.target_position = []
 
-        self.box_location = [19.0, 72.0, 0.31]
+        self.box_location = [19.0007046575, 71.9998955286, 22.1599967919]
+        #self.box_location = [19.0, 72.0, 0.31]
 
-        self.target_position.append([self.box_location[0], self.box_location[1], self.box_location[2] + 3])
+        self.target_position.append([self.box_location[0], self.target_position[0][1], self.target_position[0][2]])
+
+        self.target_position.append([self.box_location[0], self.box_location[1], self.box_location[2] + 2])
         self.target_position.append(self.box_location)
 
-        print(self.target_position)
+        #print(self.target_position)
 
         self.location_index = 0
 
@@ -63,10 +67,13 @@ class Control:
         self.min_value = 1000
 
         self.error = [0.0, 0.0, 0.0]  # [lat, long, alt]
+        self.p_error = [0.0, 0.0, 0.0]  # [lat, long, alt]
         self.dif_error = [0.0, 0.0, 0.0]
         self.sum_error = [0.0, 0.0, 0.0]  # Iterm
 
         self.output = [0.0, 0.0, 0.0]  # [lat, long, alt]
+
+        self.p_error_limit = 0.00008
 
         # Publishing /edrone/drone_command, /altitude_error, /zero_error
         self.cmd_pub = rospy.Publisher("/drone_command", edrone_cmd, queue_size=1)
@@ -138,6 +145,16 @@ class Control:
             else:
                 self.bug0_crawl()
 
+            if i != 2:
+                if self.error[i] > self.p_error_limit:
+                    self.p_error[i] = self.p_error_limit
+                elif self.error[i] < -self.p_error_limit:
+                    self.p_error[i] = -self.p_error_limit
+                else:
+                    self.p_error[i] = self.error[i]
+            else:
+                self.p_error[i] = self.error[i]
+
 
             # change in error (for derivative)
             self.dif_error[i] = self.error[i] - self.prev_value[i]
@@ -147,7 +164,7 @@ class Control:
 
             # calculating the pid output required for throttle
             self.output[i] = (
-                (self.Kp[i] * self.error[i])
+                (self.Kp[i] * self.p_error[i])
                 + self.sum_error[i]
                 + (self.Kd[i] * self.dif_error[i])
             )
@@ -217,7 +234,7 @@ class Control:
 
                 self.arival_time = 0
 
-                if not self.location_index == 2:
+                if not self.location_index == len(self.target_position) - 1:
 
                     print("Location {} reached.".format(self.location_index + 1))
 
@@ -227,7 +244,7 @@ class Control:
 
                     self.control_cmd.aux1 = 1000
 
-                    print("Location 3 reached.")
+                    print("Final location reached.")
 
                     #print("Tolerance:")
                     #print("lat = {}".format(self.error[0]))

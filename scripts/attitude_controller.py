@@ -235,6 +235,11 @@ class Edrone:
                 # self.output[i] = self.output[i] * 102.4
 
                 # print(self.output[i])
+                """if self.output[i] > 80:
+                                                                    self.output[i] = 80
+                                                                elif self.output[i] < -80:
+                                                                    self.output[i] = -80"""
+
 
             # Step 6 - Computing the pwm for each propeller
             # Motor mixing algorithm
