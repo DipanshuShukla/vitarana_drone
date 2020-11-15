@@ -3,14 +3,14 @@
 # 			PUBLICATIONS				SUBSCRIPTIONS
 # 		/edrone/drone_command			/edrone/gps
 # 		/altitude_error					/pid_tuning_altitude
-# 		/zero_error
+# 		/zero_error                     /edrone/range_finder_top
 # 		/latitude_error
 # 		/longitude_error
 
 
 from vitarana_drone.msg import *
 from pid_tune.msg import PidTune
-from sensor_msgs.msg import NavSatFix
+from sensor_msgs.msg import NavSatFix, LaserScan
 from std_msgs.msg import Float32
 import rospy
 import time
@@ -32,6 +32,12 @@ class Control:
 
         self.location_index = 0
 
+        
+        # for bug0 algorithm
+        self.distances = [0.0, 0.0, 0.0, 0.0] # [front, right, rear, left]
+        self.obstacle_encountered = False
+
+        
         time.sleep(2.5)
 
         # Drone commands
@@ -64,8 +70,9 @@ class Control:
         self.altitude_pub = rospy.Publisher("/altitude_error", Float32, queue_size=1)
         self.zero_pub = rospy.Publisher("/zero_error", Float32, queue_size=1)
 
-        # Subscribing to /edrone/gps, /pid_tuning_altitude
+        # Subscribing to /edrone/gps, /edrone/range_finder_top
         rospy.Subscriber("/edrone/gps", NavSatFix, self.gps_callback)
+        rospy.Subscriber("/edrone/range_finder_top", LaserScan, self.range_finder_callback)
         # rospy.Subscriber("/pid_tuning_altitude", PidTune, self.altitude_set_pid)
 
         # to turn on the drone
@@ -83,6 +90,13 @@ class Control:
 
         # print(self.drone_position)
 
+    
+    # range finder callback function
+    def range_finder_callback(self, msg):
+        for i in range(4):
+            self.distances[i] = msg.ranges[i]
+
+    
     def latitude_set_pid(self, latitude):
         self.Kp[0] = latitude.Kp * 500
         self.Ki[0] = latitude.Ki * 0.004
@@ -97,6 +111,14 @@ class Control:
         self.Kp[2] = altitude.Kp * 0.4
         self.Ki[2] = altitude.Ki * 0.002
         self.Kd[2] = altitude.Kd * 0.8
+
+    def obstacle_encounter(self):
+        pass
+
+    def bug_crawl(self):
+        pass
+
+
 
     def cmd(self):
 
