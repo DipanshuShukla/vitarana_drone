@@ -24,11 +24,14 @@ class Control:
 
         self.drone_position = [0.0, 0.0, 0.0]  # [lat, long, alt]
 
-        self.target_position = [
-            [19.0000451704, 72.0, 3.0],
-            [19.0, 72.0, 3.0],
-            [19.0, 72.0, 0.31],
-        ]  # [lat, long, alt]
+        self.target_position = []  # [lat, long, alt]
+
+        self.box_location = [19.0, 72.0, 0.31]
+
+        self.target_position.append([self.box_location[0], self.box_location[1], self.box_location[2] + 3])
+        self.target_position.append(self.box_location)
+
+        print(self.target_position)
 
         self.location_index = 0
 
@@ -112,10 +115,13 @@ class Control:
         self.Ki[2] = altitude.Ki * 0.002
         self.Kd[2] = altitude.Kd * 0.8
 
+    # to check for an obstacle
     def obstacle_encounter(self):
-        pass
+        # TODO
+        return False
 
-    def bug_crawl(self):
+    def bug0_crawl(self):
+        # TODO
         pass
 
 
@@ -125,9 +131,14 @@ class Control:
         # Computing error (for proportional)
         for i in range(3):
 
-            self.error[i] = (
-                self.target_position[self.location_index][i] - self.drone_position[i]
-            )
+            if not self.obstacle_encounter():
+                self.error[i] = (
+                    self.target_position[self.location_index][i] - self.drone_position[i]
+                )
+            else:
+                self.bug0_crawl()
+
+
             # change in error (for derivative)
             self.dif_error[i] = self.error[i] - self.prev_value[i]
 
