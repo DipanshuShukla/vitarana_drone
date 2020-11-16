@@ -74,20 +74,31 @@ class image_proc():
 	def qr_scan(self):
 		
 		# TODO decode qr
-		decoded_image = decode(self.img)
-		raw_data = decoded_image.data
-		coordinates = raw_data.split(",")
-		print(coordinates)
 
-		if len(decoded_image) != 0:
-			self.scan = True
-			self.destination_coordinates.x = coordinates[0]
-			self.destination_coordinates.y = coordinates[1]
-			self.destination_coordinates.z = coordinates[2]
+		if self.scan == True:
 
-		# publishing required results
+			decoded_image = decode(self.img)
+
+			# checking if qr is exist
+
+			if len(decoded_image) != 0:
+
+				self.qr_status = True
+
+				raw_data = decoded_image.data
+				coordinates = raw_data.split(",")
+
+				# sending destination coordinates
+
+				self.destination_coordinates.x = coordinates[0]
+				self.destination_coordinates.y = coordinates[1]
+				self.destination_coordinates.z = coordinates[2]
+
+			# publishing required results
+
 		self.coordinates_pub.publish(self.destination_coordinates)
 		self.qr_status_pub.publish(self.qr_status)
+
 
 if __name__ == '__main__':
 	image_proc_obj = image_proc()
