@@ -14,7 +14,7 @@ Use this code snippet in your code or you can also continue adding your code in 
 
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge, CvBridgeError
-import cv2
+import cv2, time
 import numpy as np
 import rospy
 
@@ -40,6 +40,8 @@ class image_proc():
 		# to know when to scan
 		self.scan = False
 
+		self.qr_status = False
+
 		# scanned coordinates x = lat, y = long, z = alt
 		self.destination_coordinates = Vector3()
 		self.destination_coordinates.x = 0.0
@@ -55,12 +57,16 @@ class image_proc():
 		self.coordinates_pub = rospy.Publisher("/destination_coordinates", Vector3, queue_size=1)
 		self.qr_status_pub = rospy.Publisher("/qr_status", Bool, queue_size=1)
 
+		time.sleep(2.5)
+
 
 
 	# Callback function of camera topic
 	def image_callback(self, data):
 		try:
 			self.img = self.bridge.imgmsg_to_cv2(data, "bgr8") # Converting the image to OpenCV standard image
+			#cv2.imshow("Image", self.img)
+			#cv2.waitKey(0)
 		except CvBridgeError as e:
 			print(e)
 			return
@@ -75,18 +81,18 @@ class image_proc():
 		
 		# TODO decode qr
 
-		if self.scan or True:
+		if self.scan:
 
 			decoded_image = pyzbar.decode(self.img)
 			print(decoded_image)
 
 			# checking if qr is exist
 
-			if len(decoded_image) != 0:
+			if len(decoded_image) > 0:
 
 				self.qr_status = True
 
-				raw_data = decoded_image.data
+				raw_data = decoded_image[0].data
 				coordinates = raw_data.split(",")
 
 				# sending destination coordinates
