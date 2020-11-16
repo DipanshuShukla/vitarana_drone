@@ -71,12 +71,13 @@ class image_proc():
 
 
 	# To decode qr code and find destination coordinates
-	def qr_scan(self):
+	def qr_scan(self, coordinates):
 		
 		# TODO decode qr
 		decoded_image = decode(self.img)
 		raw_data = decoded_image.data
 		coordinates = raw_data.split(",")
+		print(coordinates)
 
 		if len(decoded_image) != 0:
 			self.scan = True
