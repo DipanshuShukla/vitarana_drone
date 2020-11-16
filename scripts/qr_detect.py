@@ -71,7 +71,7 @@ class image_proc():
 
 
 	# To decode qr code and find destination coordinates
-	def qr_scan(self, coordinates):
+	def qr_scan(self):
 		
 		# TODO decode qr
 		decoded_image = decode(self.img)
