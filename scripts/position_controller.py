@@ -24,7 +24,7 @@ class Control:
 
         self.drone_position = [0.0, 0.0, 0.0]  # [lat, long, alt]
 
-        self.location_setpoints = [[19.0009248718, 71.9998318945, 22.16 + 1]]  # [lat, long, alt]
+        self.location_setpoints = [[19.0009248718, 71.9998318945, 22.16 + 2]]  # [lat, long, alt]
         #self.location_setpoints = []
 
         self.box_location = [19.0007046575, 71.9998955286, 22.1599967919]
@@ -32,7 +32,8 @@ class Control:
 
         self.location_setpoints.append([self.box_location[0], self.location_setpoints[0][1], self.location_setpoints[0][2]])
 
-        self.location_setpoints.append([self.box_location[0], self.box_location[1], self.box_location[2] + 1])
+        self.location_setpoints.append([self.box_location[0], self.box_location[1], self.box_location[2] + 2])
+        self.location_setpoints.append([self.box_location[0], self.box_location[1], self.box_location[2] + 0.6])
         self.location_setpoints.append(self.box_location)
 
         #print(self.location_setpoints)

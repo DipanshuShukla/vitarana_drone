@@ -18,7 +18,7 @@ import cv2
 import numpy as np
 import rospy
 
-from pyzbar.pyzbar import decode
+from pyzbar import pyzbar
 
 from std_msgs.msg import Bool
 from geometry_msgs.msg import Vector3
@@ -75,9 +75,10 @@ class image_proc():
 		
 		# TODO decode qr
 
-		if self.scan == True:
+		if self.scan or True:
 
-			decoded_image = decode(self.img)
+			decoded_image = pyzbar.decode(self.img)
+			print(decoded_image)
 
 			# checking if qr is exist
 
@@ -102,8 +103,9 @@ class image_proc():
 
 if __name__ == '__main__':
 	image_proc_obj = image_proc()
-	rospy.spin()
+	r = rospy.Rate(10)
 	
 	# running appropriate function continuously in loop
 	while not rospy.is_shutdown():
-		e_drone.qr_scan()
+		image_proc_obj.qr_scan()
+		r.sleep()
