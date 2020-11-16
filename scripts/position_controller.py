@@ -4,14 +4,14 @@
 # 		/edrone/drone_command			/edrone/gps
 # 		/altitude_error					/pid_tuning_altitude
 # 		/zero_error                     /edrone/range_finder_top
-# 		/latitude_error
+# 		/latitude_error                 /edrone/gripper_check
 # 		/longitude_error
 
 
 from vitarana_drone.msg import *
 from pid_tune.msg import PidTune
 from sensor_msgs.msg import NavSatFix, LaserScan
-from std_msgs.msg import Float32
+from std_msgs.msg import Float32, Bool
 import rospy
 import time
 
@@ -24,18 +24,18 @@ class Control:
 
         self.drone_position = [0.0, 0.0, 0.0]  # [lat, long, alt]
 
-        self.target_position = [[19.0009248718, 71.9998318945, 22.16 + 2]]  # [lat, long, alt]
-        #self.target_position = []
+        self.location_setpoints = [[19.0009248718, 71.9998318945, 22.16 + 1]]  # [lat, long, alt]
+        #self.location_setpoints = []
 
         self.box_location = [19.0007046575, 71.9998955286, 22.1599967919]
         #self.box_location = [19.0, 72.0, 0.31]
 
-        self.target_position.append([self.box_location[0], self.target_position[0][1], self.target_position[0][2]])
+        self.location_setpoints.append([self.box_location[0], self.location_setpoints[0][1], self.location_setpoints[0][2]])
 
-        self.target_position.append([self.box_location[0], self.box_location[1], self.box_location[2] + 2])
-        self.target_position.append(self.box_location)
+        self.location_setpoints.append([self.box_location[0], self.box_location[1], self.box_location[2] + 1])
+        self.location_setpoints.append(self.box_location)
 
-        #print(self.target_position)
+        #print(self.location_setpoints)
 
         self.location_index = 0
 
@@ -43,6 +43,13 @@ class Control:
         # for bug0 algorithm
         self.distances = [0.0, 0.0, 0.0, 0.0] # [front, right, rear, left]
         self.obstacle_encountered = False
+
+        # for scanning the qrcode and picking the package
+        self.scan_qr = False
+        self.qr_scanned = False
+
+
+        self.package_pickable = False
 
         
         time.sleep(2.5)
@@ -83,6 +90,7 @@ class Control:
         # Subscribing to /edrone/gps, /edrone/range_finder_top
         rospy.Subscriber("/edrone/gps", NavSatFix, self.gps_callback)
         rospy.Subscriber("/edrone/range_finder_top", LaserScan, self.range_finder_callback)
+        rospy.Subscriber("/edrone/range_finder_top", Bool, self.gripper_check_callback)
         # rospy.Subscriber("/pid_tuning_altitude", PidTune, self.altitude_set_pid)
 
         # to turn on the drone
@@ -106,6 +114,9 @@ class Control:
         for i in range(4):
             self.distances[i] = msg.ranges[i]
 
+    def gripper_check_callback(self, msg):
+        #self.package_pickable = msg.data
+        pass
     
     def latitude_set_pid(self, latitude):
         self.Kp[0] = latitude.Kp * 500
@@ -121,6 +132,15 @@ class Control:
         self.Kp[2] = altitude.Kp * 0.4
         self.Ki[2] = altitude.Ki * 0.002
         self.Kd[2] = altitude.Kd * 0.8
+
+    def scan_qr_code(self):
+        print("scanning qr...")
+        # TODO
+        pass
+
+    def drop_package(self):
+        # TODO
+        pass
 
     # to check for an obstacle
     def obstacle_encounter(self):
@@ -140,7 +160,7 @@ class Control:
 
             if not self.obstacle_encounter():
                 self.error[i] = (
-                    self.target_position[self.location_index][i] - self.drone_position[i]
+                    self.location_setpoints[self.location_index][i] - self.drone_position[i]
                 )
             else:
                 self.bug0_crawl()
@@ -234,7 +254,16 @@ class Control:
 
                 self.arival_time = 0
 
-                if not self.location_index == len(self.target_position) - 1:
+
+                if self.location_index == len(self.location_setpoints) - 2:
+                    
+                    if self.qr_scanned:
+                        self.location_index += 1
+                    else:
+                        self.scan_qr_code()
+
+
+                elif not self.location_index == len(self.location_setpoints) - 1 or not self.location_index == len(self.location_setpoints) - 2:
 
                     print("Location {} reached.".format(self.location_index + 1))
 
