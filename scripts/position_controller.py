@@ -28,13 +28,16 @@ class Control:
 
 		self.drone_position = [0.0, 0.0, 0.0]  # [lat, long, alt]
 
-		#self.location_setpoints = [[19.0009248718, 71.9998318945, 22.16 + 2]]  # [lat, long, alt]
-		self.location_setpoints = [[19.0000271, 72, 2.5]]
+		self.location_setpoints = [[19.0009248718, 71.9998318945, 22.16 + 2]]  # [lat, long, alt]
+		#self.location_setpoints = [[19.0000271, 72, 2.5]]
 
-		#self.box_location = [19.0007046575, 71.9998955286, 22.1599967919]
-		self.box_location = [19.0, 72.0, 0.31]
+		self.box_location = [19.0007046575, 71.9998955286, 22.1599967919]
+		#self.box_location = [19.0, 72.0, 0.31]
 
-		self.location_setpoints.append([self.box_location[0], self.location_setpoints[0][1], self.location_setpoints[0][2]])
+		self.drop_location = []
+
+
+		self.location_setpoints.append([self.location_setpoints[-1][0], self.box_location[1], self.location_setpoints[-1][2]])
 
 		self.location_setpoints.append([self.box_location[0], self.box_location[1], self.box_location[2] + 2])
 		self.location_setpoints.append([self.box_location[0], self.box_location[1], self.box_location[2] + 0.6])
@@ -57,8 +60,6 @@ class Control:
 
 		self.package_pickable = False
 		self.gripper_success = False
-		self.activate_gripper = Gripper()
-		self.activate_gripper.activate_gripper = False
 
 		# wait for the gripper sevice to be running
 		rospy.wait_for_service('/edrone/activate_gripper')
@@ -117,7 +118,16 @@ class Control:
 
 	# destination coordinates callback function
 	def destination_coordinates_callback(self, msg):
-		pass
+		if self.qr_scanned:
+			self.drop_location = [msg.x, msg.y, msg.z]
+			
+			# adding scanned location to the location setpoint list
+			if not self.drop_location == self.location_setpoints[-1]:
+				self.location_setpoints.append([self.box_location[0], self.box_location[1], self.box_location[2] + 2]) # hover at a height
+				self.location_setpoints.append([self.location_setpoints[-1][0], self.drop_location[1], self.location_setpoints[-1][2]])
+				self.location_setpoints.append([self.drop_location[0], self.drop_location[1], self.location_setpoints[-1][2]])
+				self.location_setpoints.append(self.drop_location)
+
 
 	# qr status callback function
 	def qr_status_callback(self, msg):
@@ -155,12 +165,17 @@ class Control:
 		self.Ki[2] = altitude.Ki * 0.002
 		self.Kd[2] = altitude.Kd * 0.8
 
-
-	def pick_package(self, cmd):
+	# function to pick package up
+	def pick_package(self):
 		if self.package_pickable:
 			while not self.gripper_success:
-				self.gripper_success = self.gripper_service(cmd)
+				self.gripper_success = self.gripper_service(True)
 				print(self.gripper_success)
+
+	# function to pick package up
+	def drop_package(self):
+		self.gripper_success = self.gripper_service(False)
+
 
 	# to check for an obstacle
 	def obstacle_encounter(self):
@@ -268,7 +283,7 @@ class Control:
 			if not self.arival_time:
 				self.arival_time = rospy.Time.now().to_sec()
 
-			elif rospy.Time.now().to_sec() - self.arival_time > 1 and (
+			elif rospy.Time.now().to_sec() - self.arival_time > 0.5 and (
 				(self.error[0] > -0.000004517 and self.error[0] < 0.000004517)
 				and (self.error[1] > -0.0000047487 and self.error[1] < 0.0000047487)
 				and (self.error[2] > -0.2 and self.error[2] < 0.2)
@@ -276,8 +291,16 @@ class Control:
 
 				self.arival_time = 0
 
+				if self.location_setpoints[self.location_index] == self.box_location:
+					# to command the gripper to pick package
+					self.pick_package()
+					self.location_index += 1
 
-				if self.location_index == len(self.location_setpoints) - 2:
+				elif self.location_setpoints[self.location_index] == self.drop_location:
+					# to command the gripper to drop package
+					self.drop_package()
+
+				elif self.location_index == len(self.location_setpoints) - 2:
 					
 					if self.qr_scanned:
 						self.location_index += 1
@@ -297,13 +320,12 @@ class Control:
 					self.control_cmd.aux1 = 1000
 
 					print("Final location reached.")
-					self.activate_gripper = True
-					self.pick_package(self.activate_gripper)
 
 					#print("Tolerance:")
 					#print("lat = {}".format(self.error[0]))
 					#print("long = {}".format(self.error[1]))
 					#print("alt = {}".format(self.error[2]))
+
 
 
 if __name__ == "__main__":
