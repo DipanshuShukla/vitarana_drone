@@ -65,8 +65,8 @@ class Edrone:
         # initial setting of Kp, Kd and Ki for [roll, pitch, yaw]. eg: self.Kp[2] corresponds to Kp value in yaw axis
         # after tuning and computing corresponding PID parameters, change the parameters
         self.Kp = [240, 350, 13600]
-        self.Ki = [0.008, 0.008, 0.032]
-        self.Kd = [2000, 2500, 4000]
+        self.Ki = [0.002 * 368, 0.002 * 380, 0.032]
+        self.Kd = [2228, 2500, 4000]
 
         # -----------------------Add other required variables for pid here ----------------------------------------------
         #
@@ -103,7 +103,7 @@ class Edrone:
         # Subscribing to /drone_command, imu/data, /pid_tuning_roll, /pid_tuning_pitch, /pid_tuning_yaw
         rospy.Subscriber("/drone_command", edrone_cmd, self.drone_command_callback)
         rospy.Subscriber("/edrone/imu/data", Imu, self.imu_callback)
-        # rospy.Subscriber("/pid_tuning_roll", PidTune, self.roll_set_pid)
+        #rospy.Subscriber("/pid_tuning_roll", PidTune, self.roll_set_pid)
         # -------------------------Add other ROS Subscribers here----------------------------------------------------
         # rospy.Subscriber("/pid_tuning_pitch", PidTune, self.pitch_set_pid)
         # rospy.Subscriber("/pid_tuning_yaw", PidTune, self.yaw_set_pid)

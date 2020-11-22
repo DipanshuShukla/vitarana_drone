@@ -28,18 +28,18 @@ class Control:
 
 		self.drone_position = [0.0, 0.0, 0.0]  # [lat, long, alt]
 
-		self.location_setpoints = [[19.0009248718, 71.9998318945, 22.16 + 2]]  # [lat, long, alt]
-		#self.location_setpoints = [[19.0000271, 72, 2.5]]
+		self.location_setpoints = [[19.0009248718, 71.9998318945, 22.16 + 4]]  # [lat, long, alt]
+		#self.location_setpoints = [[19.0000271, 72, 2.5]] # for box.launch
 
 		self.box_location = [19.0007046575, 71.9998955286, 22.1599967919]
-		#self.box_location = [19.0, 72.0, 0.31]
+		#self.box_location = [19.0, 72.0, 0.31] # for box.launch
 
 		self.drop_location = []
 
 
-		self.location_setpoints.append([self.location_setpoints[-1][0], self.box_location[1], self.location_setpoints[-1][2]])
+		#self.location_setpoints.append([self.location_setpoints[-1][0], self.box_location[1], self.location_setpoints[-1][2]])
 
-		self.location_setpoints.append([self.box_location[0], self.box_location[1], self.box_location[2] + 2])
+		self.location_setpoints.append([self.box_location[0], self.box_location[1], self.box_location[2] + 4])
 		self.location_setpoints.append([self.box_location[0], self.box_location[1], self.box_location[2] + 0.6])
 		self.location_setpoints.append(self.box_location)
 
@@ -49,8 +49,7 @@ class Control:
 
 		
 		# for bug0 algorithm
-		self.distances = [0.0, 0.0, 0.0, 0.0] # [front, right, rear, left]
-		self.obstacle_encountered = False
+		self.distances = [10.0, 10.0, 10.0, 10.0] # [front, right, rear, left]
 
 		# for scanning the qrcode and picking the package
 		self.qr_command = Bool()
@@ -60,6 +59,8 @@ class Control:
 
 		self.package_pickable = False
 		self.gripper_success = False
+		self.package_picked = False
+		self.crawling = False
 
 		# wait for the gripper sevice to be running
 		rospy.wait_for_service('/edrone/activate_gripper')
@@ -81,7 +82,7 @@ class Control:
 		# variables for pid
 		# initial setting of Kp, Kd and Ki for throttle
 		self.Kp = [720000, 720000, 396.0]
-		self.Ki = [0.2, 0.2, 0.002]
+		self.Ki = [0.66, 0.66, 0.88]
 		self.Kd = [20000000, 20000000, 4000.0]
 
 		self.prev_value = [0.0, 0.0, 0.0]  # [lat, long, alt]
@@ -95,7 +96,8 @@ class Control:
 
 		self.output = [0.0, 0.0, 0.0]  # [lat, long, alt]
 
-		self.p_error_limit = 0.00008
+		self.p_error_limit = 0.000036
+		self.p_error_limit_altitude = 2
 
 		# Publishing /edrone/drone_command, /altitude_error, /zero_error, /qr_command
 		self.cmd_pub = rospy.Publisher("/drone_command", edrone_cmd, queue_size=1)
@@ -103,12 +105,13 @@ class Control:
 		self.zero_pub = rospy.Publisher("/zero_error", Float32, queue_size=1)
 		self.qr_command_pub = rospy.Publisher("/qr_command", Bool, queue_size=1)
 
-		# Subscribing to /edrone/gps, /edrone/gripper_check, /destination_coordinates, /qr_status
+		# Subscribing to /edrone/gps, /edrone/gripper_check, /destination_coordinates, /qr_status, /edrone/range_finder_top
 		rospy.Subscriber("/edrone/gps", NavSatFix, self.gps_callback)
 		rospy.Subscriber("/destination_coordinates", Vector3, self.destination_coordinates_callback)
 		rospy.Subscriber("/edrone/gripper_check", String, self.gripper_check_callback)
 		rospy.Subscriber("/qr_status", Bool, self.qr_status_callback)
-		# rospy.Subscriber("/pid_tuning_altitude", PidTune, self.altitude_set_pid)
+		#rospy.Subscriber("/pid_tuning_altitude", PidTune, self.longitude_set_pid)
+		rospy.Subscriber("/edrone/range_finder_top", LaserScan, self.range_finder_callback)
 
 		# to turn on the drone
 		self.cmd_pub.publish(self.control_cmd)
@@ -124,9 +127,11 @@ class Control:
 			# adding scanned location to the location setpoint list
 			if not self.drop_location == self.location_setpoints[-1]:
 				self.location_setpoints.append([self.box_location[0], self.box_location[1], self.box_location[2] + 2]) # hover at a height
-				self.location_setpoints.append([self.location_setpoints[-1][0], self.drop_location[1], self.location_setpoints[-1][2]])
+				#self.location_setpoints.append([self.drop_location[0], self.location_setpoints[-1][1], self.location_setpoints[-1][2]])
 				self.location_setpoints.append([self.drop_location[0], self.drop_location[1], self.location_setpoints[-1][2]])
+				self.location_setpoints.append([self.drop_location[0], self.drop_location[1], self.drop_location[2] + 2])
 				self.location_setpoints.append(self.drop_location)
+
 
 
 	# qr status callback function
@@ -152,13 +157,13 @@ class Control:
 	
 	def latitude_set_pid(self, latitude):
 		self.Kp[0] = latitude.Kp * 500
-		self.Ki[0] = latitude.Ki * 0.004
+		self.Ki[0] = latitude.Ki * 0.001
 		self.Kd[0] = latitude.Kd * 8000
 
 	def longitude_set_pid(self, longitude):
-		self.Kp[1] = longitude.Kp * 500
-		self.Ki[1] = longitude.Ki * 0.004
-		self.Kd[1] = longitude.Kd * 8000
+		#self.Kp[1] = longitude.Kp * 500
+		self.Ki[1] = longitude.Ki * 0.001
+		#self.Kd[1] = longitude.Kd * 8000
 
 	def altitude_set_pid(self, altitude):
 		self.Kp[2] = altitude.Kp * 0.4
@@ -170,34 +175,106 @@ class Control:
 		if self.package_pickable:
 			while not self.gripper_success:
 				self.gripper_success = self.gripper_service(True)
-				print(self.gripper_success)
+				if self.gripper_success:
+					self.package_picked = True
 
 	# function to pick package up
 	def drop_package(self):
-		self.gripper_success = self.gripper_service(False)
+		if self.package_picked:
+			self.gripper_success = self.gripper_service(False)
+			self.package_picked = False
+
+	def set_waypiont(self):
+				# to move to next location
+		# checking tolerance in lat, long, alt respectively
+		if (
+			(self.error[0] > -0.000004517 and self.error[0] < 0.000004517)
+			and (self.error[1] > -0.0000047487 and self.error[1] < 0.0000047487)
+			and (self.error[2] > -0.2 and self.error[2] < 0.2)
+		):
+
+			if not self.arival_time:
+				self.arival_time = rospy.Time.now().to_sec()
+
+			elif rospy.Time.now().to_sec() - self.arival_time > 0.5 and (
+				(self.error[0] > -0.000004517 and self.error[0] < 0.000004517)
+				and (self.error[1] > -0.0000047487 and self.error[1] < 0.0000047487)
+				and (self.error[2] > -0.2 and self.error[2] < 0.2)
+			):
+
+				self.arival_time = 0
+
+				if self.location_setpoints[self.location_index] == self.box_location:
+					# to command the gripper to pick package
+					self.pick_package()
+					self.location_index += 1
+
+				elif self.location_setpoints[self.location_index] == self.drop_location:
+					# to command the gripper to drop package
+					self.drop_package()
+
+				elif self.location_index == len(self.location_setpoints) - 2:
+					
+					if self.qr_scanned:
+						self.location_index += 1
+						self.qr_command.data = False
+					else:
+						self.qr_command.data = True
+
+
+				elif not self.location_index == len(self.location_setpoints) - 1:
+
+					#print("Location {} reached.".format(self.location_index + 1))
+
+					self.location_index += 1
+
+				elif self.control_cmd.aux1 == 2000:
+
+					self.control_cmd.aux1 = 1000
+
+					print("Final location reached.")
+
+					#print("Tolerance:")
+					#print("lat = {}".format(self.error[0]))
+					#print("long = {}".format(self.error[1]))
+					#print("alt = {}".format(self.error[2]))
 
 
 	# to check for an obstacle
-	def obstacle_encounter(self):
-		# TODO
+	def obstacle_encountered(self):
+		if self.distances[3] < 6:
+			return True
 		return False
 
+	def metres_to_lat(self, lat):
+		return (lat / 110692.0702932625)
+
+	def meters_to_long(self, lon):
+		return (lon / -105292.0089353767)
+
 	def bug0_crawl(self):
-		# TODO
-		pass
+		if self.obstacle_encountered():
+			print("crawling like a bug")
+#			if self.distances[3] < 4.4:
+#				self.error[0] = (4.4 - self.distances[3]) * 0.000004
+#			else:
+#				self.error[0] = 0.0
+#			self.error[1] = 0.00004
 
-
+			#if self.distances[3] < 4.5:
+			self.error[0] = self.metres_to_lat(4.6 - self.distances[3])
+			self.error[1] = - self.meters_to_long(1.8)
 
 	def cmd(self):
 
 		# Computing error (for proportional)
 		for i in range(3):
 
-			if not self.obstacle_encounter():
-				self.error[i] = (
-					self.location_setpoints[self.location_index][i] - self.drone_position[i]
-				)
-			else:
+
+			self.error[i] = (
+				self.location_setpoints[self.location_index][i] - self.drone_position[i]
+			)
+			if self.obstacle_encountered():
 				self.bug0_crawl()
 
 			if i != 2:
@@ -208,7 +285,12 @@ class Control:
 				else:
 					self.p_error[i] = self.error[i]
 			else:
-				self.p_error[i] = self.error[i]
+				if self.error[i] > self.p_error_limit_altitude:
+					self.p_error[i] = self.p_error_limit_altitude
+				elif self.error[i] < -self.p_error_limit_altitude:
+					self.p_error[i] = -self.p_error_limit_altitude
+				else:
+					self.p_error[i] = self.error[i]
 
 
 			# change in error (for derivative)
@@ -266,65 +348,14 @@ class Control:
 		# print(self.control_cmd.rcPitch)
 
 		self.cmd_pub.publish(self.control_cmd)
-		self.altitude_pub.publish(self.error[2])
+		self.altitude_pub.publish(self.error[0])
 
 		self.zero_pub.publish(0.0)
 
 		self.qr_command_pub.publish(self.qr_command)
 
-		# to move to next location
-		# checking tolerance in lat, long, alt respectively
-		if (
-			(self.error[0] > -0.000004517 and self.error[0] < 0.000004517)
-			and (self.error[1] > -0.0000047487 and self.error[1] < 0.0000047487)
-			and (self.error[2] > -0.2 and self.error[2] < 0.2)
-		):
-
-			if not self.arival_time:
-				self.arival_time = rospy.Time.now().to_sec()
-
-			elif rospy.Time.now().to_sec() - self.arival_time > 0.5 and (
-				(self.error[0] > -0.000004517 and self.error[0] < 0.000004517)
-				and (self.error[1] > -0.0000047487 and self.error[1] < 0.0000047487)
-				and (self.error[2] > -0.2 and self.error[2] < 0.2)
-			):
-
-				self.arival_time = 0
-
-				if self.location_setpoints[self.location_index] == self.box_location:
-					# to command the gripper to pick package
-					self.pick_package()
-					self.location_index += 1
-
-				elif self.location_setpoints[self.location_index] == self.drop_location:
-					# to command the gripper to drop package
-					self.drop_package()
-
-				elif self.location_index == len(self.location_setpoints) - 2:
-					
-					if self.qr_scanned:
-						self.location_index += 1
-						self.qr_command.data = False
-					else:
-						self.qr_command.data = True
-
-
-				elif not self.location_index == len(self.location_setpoints) - 1:
-
-					print("Location {} reached.".format(self.location_index + 1))
-
-					self.location_index += 1
-
-				elif self.control_cmd.aux1 == 2000:
-
-					self.control_cmd.aux1 = 1000
-
-					print("Final location reached.")
-
-					#print("Tolerance:")
-					#print("lat = {}".format(self.error[0]))
-					#print("long = {}".format(self.error[1]))
-					#print("alt = {}".format(self.error[2]))
+		# to keep track of and update destination
+		self.set_waypiont()
 
 
 
