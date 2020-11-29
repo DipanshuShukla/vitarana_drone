@@ -109,6 +109,9 @@ class Edrone:
         # rospy.Subscriber("/pid_tuning_yaw", PidTune, self.yaw_set_pid)
         # ------------------------------------------------------------------------------------------------------------
 
+        time.sleep(2.5)
+
+
     # Imu callback function
     # The function gets executed each time when imu publishes /edrone/imu/data
 

@@ -68,7 +68,7 @@ class Control:
 		self.gripper_service = rospy.ServiceProxy('/edrone/activate_gripper', Gripper)
 
 		
-		time.sleep(2.5)
+		time.sleep(7)
 
 		# Drone commands
 		self.control_cmd = edrone_cmd()
@@ -125,12 +125,13 @@ class Control:
 			self.drop_location = [msg.x, msg.y, msg.z]
 			
 			# adding scanned location to the location setpoint list
-			if not self.drop_location == self.location_setpoints[-1]:
+			if not self.drop_location == self.location_setpoints[-2]:
 				self.location_setpoints.append([self.box_location[0], self.box_location[1], self.box_location[2] + 2]) # hover at a height
 				#self.location_setpoints.append([self.drop_location[0], self.location_setpoints[-1][1], self.location_setpoints[-1][2]])
 				self.location_setpoints.append([self.drop_location[0], self.drop_location[1], self.location_setpoints[-1][2]])
 				self.location_setpoints.append([self.drop_location[0], self.drop_location[1], self.drop_location[2] + 2])
 				self.location_setpoints.append(self.drop_location)
+				self.location_setpoints.append([self.drop_location[0], self.drop_location[1], self.drop_location[2] + 2])
 
 
 
@@ -212,6 +213,7 @@ class Control:
 				elif self.location_setpoints[self.location_index] == self.drop_location:
 					# to command the gripper to drop package
 					self.drop_package()
+					self.location_index += 1
 
 				elif self.location_index == len(self.location_setpoints) - 2:
 					
@@ -228,7 +230,7 @@ class Control:
 
 					self.location_index += 1
 
-				elif self.control_cmd.aux1 == 2000:
+				elif self.control_cmd.aux1 == 2000 and False:
 
 					self.control_cmd.aux1 = 1000
 
