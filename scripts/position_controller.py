@@ -28,12 +28,14 @@ class Control:
 
 		self.drone_position = [0.0, 0.0, 0.0]  # [lat, long, alt]
 
-		self.location_setpoints = [[19.0009248718, 71.9998318945, 22.16 + 4]]  # [lat, long, alt]
+		#self.location_setpoints = [[19.0009248718, 71.9998318945, 22.16 + 4]]  # [lat, long, alt]
 		#self.location_setpoints = [[19.0000271, 72, 2.5]] # for box.launch
 
-		self.box_location = [19.0007046575, 71.9998955286, 22.1599967919]
+		#self.box_location = [19.0007046575, 71.9998955286, 22.1599967919]
 		#self.box_location = [19.0, 72.0, 0.31] # for box.launch
 
+		
+		
 		self.drop_location = []
 
 
