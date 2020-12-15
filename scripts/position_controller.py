@@ -34,18 +34,21 @@ class Control:
 		#self.box_location = [19.0007046575, 71.9998955286, 22.1599967919]
 		#self.box_location = [19.0, 72.0, 0.31] # for box.launch
 
+		self.location_setpoints = []
+		self.building_coordinates = [[18.9993675932, 72.0000569892, 10.7], [18.9990965928, 72.0000664814, 10.75], [18.9990965925, 71.9999050292, 22.2]]
+
 		
-		
+
 		self.drop_location = []
 
 
 		#self.location_setpoints.append([self.location_setpoints[-1][0], self.box_location[1], self.location_setpoints[-1][2]])
 
-		self.location_setpoints.append([self.box_location[0], self.box_location[1], self.box_location[2] + 4])
-		self.location_setpoints.append([self.box_location[0], self.box_location[1], self.box_location[2] + 0.6])
-		self.location_setpoints.append(self.box_location)
+		#self.location_setpoints.append([self.box_location[0], self.box_location[1], self.box_location[2] + 4])
+		#self.location_setpoints.append([self.box_location[0], self.box_location[1], self.box_location[2] + 0.6])
+		#self.location_setpoints.append(self.box_location)
 
-		#print(self.location_setpoints)
+		print(self.location_setpoints)
 
 		self.location_index = 0
 
@@ -64,13 +67,15 @@ class Control:
 		self.package_picked = False
 		self.crawling = False
 
+		time.sleep(3)
+
 		# wait for the gripper sevice to be running
-		rospy.wait_for_service('/edrone/activate_gripper')
+		#rospy.wait_for_service('/edrone/activate_gripper')
 		# connection to the gripper service
 		self.gripper_service = rospy.ServiceProxy('/edrone/activate_gripper', Gripper)
 
 		
-		time.sleep(7)
+		
 
 		# Drone commands
 		self.control_cmd = edrone_cmd()
@@ -147,6 +152,17 @@ class Control:
 		self.drone_position[1] = msg.longitude
 		self.drone_position[2] = msg.altitude
 
+		if not self.location_setpoints:
+			self.location_setpoints.append(self.drone_position[:-1])
+			self.location_setpoints[-1].append(self.drone_position[-1] + 2)
+			
+			for pos in self.building_coordinates:
+				self.location_setpoints.append(self.location_setpoints[-1])
+				cur_height = self.location_setpoints[-1][-1]
+				self.location_setpoints[-1][-1] = cur_height if cur_height > pos[-1] else pos[-1]
+				self.location_setpoints.append(pos[:-1])
+				self.location_setpoints[-1].append(pos[-1] + 1)
+
 		# print(self.drone_position)
 
 	
@@ -207,17 +223,17 @@ class Control:
 
 				self.arival_time = 0
 
-				if self.location_setpoints[self.location_index] == self.box_location:
-					# to command the gripper to pick package
-					self.pick_package()
-					self.location_index += 1
+#				if self.location_setpoints[self.location_index] == self.box_location:
+#					# to command the gripper to pick package
+#					self.pick_package()
+#					self.location_index += 1
 
-				elif self.location_setpoints[self.location_index] == self.drop_location:
-					# to command the gripper to drop package
-					self.drop_package()
-					self.location_index += 1
+#				elif self.location_setpoints[self.location_index] == self.drop_location:
+#					# to command the gripper to drop package
+#					self.drop_package()
+#					self.location_index += 1
 
-				elif self.location_index == len(self.location_setpoints) - 2:
+				if self.location_index == len(self.location_setpoints) - 2:
 					
 					if self.qr_scanned:
 						self.location_index += 1
@@ -257,109 +273,100 @@ class Control:
 		return (lon / -105292.0089353767)
 
 	def bug0_crawl(self):
-		if self.obstacle_encountered():
-			print("crawling like a bug")
-#			if self.distances[3] < 4.4:
-#				self.error[0] = (4.4 - self.distances[3]) * 0.000004
-#			else:
-#				self.error[0] = 0.0
-#			self.error[1] = 0.00004
-
-			#if self.distances[3] < 4.5:
-			self.error[0] = self.metres_to_lat(4.6 - self.distances[3])
-			self.error[1] = - self.meters_to_long(1.8)
+		pass
 
 	def cmd(self):
 
-		# Computing error (for proportional)
-		for i in range(3):
+		if self.location_setpoints:
+			# Computing error (for proportional)
+			for i in range(3):
 
 
-			self.error[i] = (
-				self.location_setpoints[self.location_index][i] - self.drone_position[i]
-			)
-			if self.obstacle_encountered():
-				self.bug0_crawl()
+				self.error[i] = (
+					self.location_setpoints[self.location_index][i] - self.drone_position[i]
+				)
+				if self.obstacle_encountered():
+					self.bug0_crawl()
 
-			if i != 2:
-				if self.error[i] > self.p_error_limit:
-					self.p_error[i] = self.p_error_limit
-				elif self.error[i] < -self.p_error_limit:
-					self.p_error[i] = -self.p_error_limit
+				if i != 2:
+					if self.error[i] > self.p_error_limit:
+						self.p_error[i] = self.p_error_limit
+					elif self.error[i] < -self.p_error_limit:
+						self.p_error[i] = -self.p_error_limit
+					else:
+						self.p_error[i] = self.error[i]
 				else:
-					self.p_error[i] = self.error[i]
-			else:
-				if self.error[i] > self.p_error_limit_altitude:
-					self.p_error[i] = self.p_error_limit_altitude
-				elif self.error[i] < -self.p_error_limit_altitude:
-					self.p_error[i] = -self.p_error_limit_altitude
-				else:
-					self.p_error[i] = self.error[i]
+					if self.error[i] > self.p_error_limit_altitude:
+						self.p_error[i] = self.p_error_limit_altitude
+					elif self.error[i] < -self.p_error_limit_altitude:
+						self.p_error[i] = -self.p_error_limit_altitude
+					else:
+						self.p_error[i] = self.error[i]
 
 
-			# change in error (for derivative)
-			self.dif_error[i] = self.error[i] - self.prev_value[i]
+				# change in error (for derivative)
+				self.dif_error[i] = self.error[i] - self.prev_value[i]
 
-			# sum of errors (for integral)
-			self.sum_error[i] = (self.sum_error[i] + self.error[i]) * self.Ki[i]
+				# sum of errors (for integral)
+				self.sum_error[i] = (self.sum_error[i] + self.error[i]) * self.Ki[i]
 
-			# calculating the pid output required for throttle
-			self.output[i] = (
-				(self.Kp[i] * self.p_error[i])
-				+ self.sum_error[i]
-				+ (self.Kd[i] * self.dif_error[i])
-			)
+				# calculating the pid output required for throttle
+				self.output[i] = (
+					(self.Kp[i] * self.p_error[i])
+					+ self.sum_error[i]
+					+ (self.Kd[i] * self.dif_error[i])
+				)
 
-		# Setting control values
-		self.control_cmd.rcRoll = self.output[0] + 1500
-		self.control_cmd.rcPitch = self.output[1] + 1500
-		self.control_cmd.rcThrottle = self.output[2] + 1500
+			# Setting control values
+			self.control_cmd.rcRoll = self.output[0] + 1500
+			self.control_cmd.rcPitch = self.output[1] + 1500
+			self.control_cmd.rcThrottle = self.output[2] + 1500
 
-		# print(self.output)
+			# print(self.output)
 
-		# Limiting the output value and the final command value
-		if self.control_cmd.rcRoll > self.max_value:
-			self.control_cmd.rcRoll = self.max_value
+			# Limiting the output value and the final command value
+			if self.control_cmd.rcRoll > self.max_value:
+				self.control_cmd.rcRoll = self.max_value
 
-		elif self.control_cmd.rcRoll < self.min_value:
-			self.control_cmd.rcRoll = self.min_value
+			elif self.control_cmd.rcRoll < self.min_value:
+				self.control_cmd.rcRoll = self.min_value
 
-		if self.control_cmd.rcPitch > self.max_value:
-			self.control_cmd.rcPitch = self.max_value
+			if self.control_cmd.rcPitch > self.max_value:
+				self.control_cmd.rcPitch = self.max_value
 
-		elif self.control_cmd.rcPitch < self.min_value:
-			self.control_cmd.rcPitch = self.min_value
+			elif self.control_cmd.rcPitch < self.min_value:
+				self.control_cmd.rcPitch = self.min_value
 
-		if self.control_cmd.rcYaw > self.max_value:
-			self.control_cmd.rcYaw = self.max_value
+			if self.control_cmd.rcYaw > self.max_value:
+				self.control_cmd.rcYaw = self.max_value
 
-		elif self.control_cmd.rcYaw < self.min_value:
-			self.control_cmd.rcYaw = self.min_value
+			elif self.control_cmd.rcYaw < self.min_value:
+				self.control_cmd.rcYaw = self.min_value
 
-		if self.control_cmd.rcThrottle > self.max_value:
-			self.control_cmd.rcThrottle = self.max_value
+			if self.control_cmd.rcThrottle > self.max_value:
+				self.control_cmd.rcThrottle = self.max_value
 
-		elif self.control_cmd.rcThrottle < self.min_value:
-			self.control_cmd.rcThrottle = self.min_value
+			elif self.control_cmd.rcThrottle < self.min_value:
+				self.control_cmd.rcThrottle = self.min_value
 
-		# print(self.control_cmd.rcThrottle)
+			# print(self.control_cmd.rcThrottle)
 
-		# Update previous error value
-		for i in range(3):
-			self.prev_value[i] = self.error[i]
+			# Update previous error value
+			for i in range(3):
+				self.prev_value[i] = self.error[i]
 
-		# print(self.control_cmd.rcRoll)
-		# print(self.control_cmd.rcPitch)
+			# print(self.control_cmd.rcRoll)
+			# print(self.control_cmd.rcPitch)
 
-		self.cmd_pub.publish(self.control_cmd)
-		self.altitude_pub.publish(self.error[0])
+			self.cmd_pub.publish(self.control_cmd)
+			self.altitude_pub.publish(self.error[0])
 
-		self.zero_pub.publish(0.0)
+			self.zero_pub.publish(0.0)
 
-		self.qr_command_pub.publish(self.qr_command)
+			self.qr_command_pub.publish(self.qr_command)
 
-		# to keep track of and update destination
-		self.set_waypiont()
+			# to keep track of and update destination
+			self.set_waypiont()
 
 
 
