@@ -27,7 +27,7 @@ class detector():
 		self.img = np.empty([]) # This will contain your image frame from camera
 		self.bridge = CvBridge()
 
-		self.cascade = cv2.CascadeClassifier('cascade.xml')
+		self.cascade = cv2.CascadeClassifier('/home/codebunny/catkin_ws/src/vitarana_drone/scripts/cascade.xml')
 
 		# to know when to scan
 		self.scan = False
@@ -53,7 +53,7 @@ class detector():
 
 	# To decode qr code and find destination coordinates
 	def detect_marker(self):
-		
+
 		# detect marker
 		gray = cv2.cvtColor(self.img, cv2.COLOR_BGR2GRAY)
 

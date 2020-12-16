@@ -16,6 +16,7 @@ from sensor_msgs.msg import NavSatFix, LaserScan
 from std_msgs.msg import Float32, Bool, String
 import rospy
 import time
+from copy import deepcopy
 from geometry_msgs.msg import Vector3
 from vitarana_drone.srv import Gripper
 
@@ -54,7 +55,7 @@ class Control:
 
 		
 		# for bug0 algorithm
-		self.distances = [10.0, 10.0, 10.0, 10.0] # [front, right, rear, left]
+		self.distances = [10.0, 10.0, 10.0, 10.0, 10.0] # [front, right, rear, left, bottom]
 
 		# for scanning the qrcode and picking the package
 		self.qr_command = Bool()
@@ -118,7 +119,8 @@ class Control:
 		rospy.Subscriber("/edrone/gripper_check", String, self.gripper_check_callback)
 		rospy.Subscriber("/qr_status", Bool, self.qr_status_callback)
 		#rospy.Subscriber("/pid_tuning_altitude", PidTune, self.longitude_set_pid)
-		rospy.Subscriber("/edrone/range_finder_top", LaserScan, self.range_finder_callback)
+		rospy.Subscriber("/edrone/range_finder_top", LaserScan, self.range_finder_top_callback)
+		rospy.Subscriber("/edrone/range_finder_bottom", LaserScan, self.range_finder_bottom_callback)
 
 		# to turn on the drone
 		self.cmd_pub.publish(self.control_cmd)
@@ -153,23 +155,45 @@ class Control:
 		self.drone_position[2] = msg.altitude
 
 		if not self.location_setpoints:
+			#to hover at a height before comencing task
 			self.location_setpoints.append(self.drone_position[:-1])
-			self.location_setpoints[-1].append(self.drone_position[-1] + 2)
+			self.location_setpoints[-1].append(self.drone_position[-1] + 1)
 			
 			for pos in self.building_coordinates:
+				pos[-1] += 1
+				#print(pos)
+
+				temp = deepcopy(pos)
+
+				print(self.location_setpoints[-1])
+
 				self.location_setpoints.append(self.location_setpoints[-1])
 				cur_height = self.location_setpoints[-1][-1]
-				self.location_setpoints[-1][-1] = cur_height if cur_height > pos[-1] else pos[-1]
-				self.location_setpoints.append(pos[:-1])
-				self.location_setpoints[-1].append(pos[-1] + 1)
+				self.location_setpoints[-1][-1] = cur_height if cur_height > pos[-1] else deepcopy(pos[-1])
+				
+				print(self.location_setpoints[-1])
+
+				self.location_setpoints.append(pos)
+				self.location_setpoints[-1][-1] = self.location_setpoints[-2][-1]
+
+				print(self.location_setpoints[-1])
+
+				# next building
+				#print(temp)
+				self.location_setpoints.append(temp)
+			print(self.location_setpoints[-1])
 
 		# print(self.drone_position)
 
 	
-	# range finder callback function
-	def range_finder_callback(self, msg):
+	# range finder top callback function
+	def range_finder_top_callback(self, msg):
 		for i in range(4):
 			self.distances[i] = msg.ranges[i]
+	
+	# range finder bottom callback function
+	def range_finder_bottom_callback(self, msg):
+			self.distances[4] = msg.ranges[0]
 
 	def gripper_check_callback(self, msg):
 		self.package_pickable = msg.data
@@ -278,6 +302,8 @@ class Control:
 	def cmd(self):
 
 		if self.location_setpoints:
+
+
 			# Computing error (for proportional)
 			for i in range(3):
 
