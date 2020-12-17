@@ -36,9 +36,8 @@ class Control:
 		#self.box_location = [19.0, 72.0, 0.31] # for box.launch
 
 		self.location_setpoints = []
-		self.building_coordinates = [[18.9993675932, 72.0000569892, 10.7], [18.9990965928, 72.0000664814, 10.75], [18.9990965925, 71.9999050292, 22.2]]
+		self.building_coordinates = [[18.9990965928, 72.0000664814, 10.75], [18.9990965925, 71.9999050292, 22.2], [18.9993675932, 72.0000569892, 10.7]]
 
-		
 
 		self.drop_location = []
 
@@ -49,13 +48,20 @@ class Control:
 		#self.location_setpoints.append([self.box_location[0], self.box_location[1], self.box_location[2] + 0.6])
 		#self.location_setpoints.append(self.box_location)
 
-		print(self.location_setpoints)
+		#print(self.location_setpoints)
 
 		self.location_index = 0
 
 		
+		
 		# for bug0 algorithm
 		self.distances = [10.0, 10.0, 10.0, 10.0, 10.0] # [front, right, rear, left, bottom]
+		self.safe_pos = []
+		self.detection_distance = 6
+		self.safe_distance = 3
+		self.encounter_time = 0.0
+
+		
 
 		# for scanning the qrcode and picking the package
 		self.qr_command = Bool()
@@ -104,8 +110,8 @@ class Control:
 
 		self.output = [0.0, 0.0, 0.0]  # [lat, long, alt]
 
-		self.p_error_limit = 0.000036
-		self.p_error_limit_altitude = 2
+		self.p_error_limit = 0.00002
+		self.p_error_limit_altitude = 1
 
 		# Publishing /edrone/drone_command, /altitude_error, /zero_error, /qr_command
 		self.cmd_pub = rospy.Publisher("/drone_command", edrone_cmd, queue_size=1)
@@ -127,6 +133,8 @@ class Control:
 
 		# to delay time in the location for accuracy
 		self.arival_time = 0
+
+
 
 	# destination coordinates callback function
 	def destination_coordinates_callback(self, msg):
@@ -156,8 +164,8 @@ class Control:
 
 		if not self.location_setpoints:
 			#to hover at a height before comencing task
-			self.location_setpoints.append(self.drone_position[:-1])
-			self.location_setpoints[-1].append(self.drone_position[-1] + 1)
+			self.location_setpoints.append(self.drone_position)
+			self.location_setpoints[-1][-1] += 2
 			
 			for pos in self.building_coordinates:
 				pos[-1] += 1
@@ -165,23 +173,23 @@ class Control:
 
 				temp = deepcopy(pos)
 
-				print(self.location_setpoints[-1])
+				#print(self.location_setpoints[-1])
 
 				self.location_setpoints.append(self.location_setpoints[-1])
 				cur_height = self.location_setpoints[-1][-1]
 				self.location_setpoints[-1][-1] = cur_height if cur_height > pos[-1] else deepcopy(pos[-1])
 				
-				print(self.location_setpoints[-1])
+				#print(self.location_setpoints[-1])
 
 				self.location_setpoints.append(pos)
 				self.location_setpoints[-1][-1] = self.location_setpoints[-2][-1]
 
-				print(self.location_setpoints[-1])
+				#print(self.location_setpoints[-1])
 
 				# next building
 				#print(temp)
 				self.location_setpoints.append(temp)
-			print(self.location_setpoints[-1])
+			#print(self.location_setpoints)
 
 		# print(self.drone_position)
 
@@ -190,10 +198,13 @@ class Control:
 	def range_finder_top_callback(self, msg):
 		for i in range(4):
 			self.distances[i] = msg.ranges[i]
+			self.distances[i] = float(self.distances[i])
 	
 	# range finder bottom callback function
 	def range_finder_bottom_callback(self, msg):
-			self.distances[4] = msg.ranges[0]
+			self.distances[4] = msg.ranges[0] - 0.2
+			self.distances[4] = float(self.distances[4])
+			#print(self.distances[4])
 
 	def gripper_check_callback(self, msg):
 		self.package_pickable = msg.data
@@ -239,7 +250,7 @@ class Control:
 			if not self.arival_time:
 				self.arival_time = rospy.Time.now().to_sec()
 
-			elif rospy.Time.now().to_sec() - self.arival_time > 0.5 and (
+			elif rospy.Time.now().to_sec() - self.arival_time > 1 and (
 				(self.error[0] > -0.000004517 and self.error[0] < 0.000004517)
 				and (self.error[1] > -0.0000047487 and self.error[1] < 0.0000047487)
 				and (self.error[2] > -0.2 and self.error[2] < 0.2)
@@ -286,8 +297,30 @@ class Control:
 
 	# to check for an obstacle
 	def obstacle_encountered(self):
-		if self.distances[3] < 6:
+		
+		if self.distances[3] <= self.detection_distance:
+			if self.distances[3] <= self.safe_distance:
+				if not self.encounter_time and self.distances[4] >=2:
+					self.safe_pos = deepcopy(self.drone_position)
+					self.encounter_time = rospy.Time.now().to_sec()
+					print("hello")
+
+				#if rospy.Time.now().to_sec() - self.encounter_time > 4:
+					#self.safe_pos = []
+					#self.encounter_time = 0
 			return True
+		else:
+			if not self.encounter_time:
+				self.safe_pos = []
+				self.encounter_time = 0
+				#print("bye")
+			elif rospy.Time.now().to_sec() - self.encounter_time > 2:
+				self.safe_pos = []
+				self.encounter_time = 0
+				#print("bye")
+
+			#print("bye")
+			
 		return False
 
 	def metres_to_lat(self, lat):
@@ -297,12 +330,18 @@ class Control:
 		return (lon / -105292.0089353767)
 
 	def bug0_crawl(self):
-		pass
+		if self.obstacle_encountered():
+			if self.distances[3] < self.safe_distance:
+				if self.encounter_time:
+					self.safe_pos[2] += 0.28
+					for i in range(3):
+						self.error[i] = self.safe_pos[i] - self.drone_position[i]
+
+
 
 	def cmd(self):
 
 		if self.location_setpoints:
-
 
 			# Computing error (for proportional)
 			for i in range(3):
@@ -311,8 +350,13 @@ class Control:
 				self.error[i] = (
 					self.location_setpoints[self.location_index][i] - self.drone_position[i]
 				)
-				if self.obstacle_encountered():
-					self.bug0_crawl()
+			if self.obstacle_encountered():
+				self.bug0_crawl()
+			#	self.p_error_limit = 0.000006
+			#else:
+			#	self.p_error_limit = 0.000036
+
+			for i in range(3):
 
 				if i != 2:
 					if self.error[i] > self.p_error_limit:
@@ -321,7 +365,17 @@ class Control:
 						self.p_error[i] = -self.p_error_limit
 					else:
 						self.p_error[i] = self.error[i]
+						#print(type(self.error[i]))
 				else:
+
+					# to hover above a distance of 1m above the ground 
+					if self.distances[4] < 3:
+						diff = 3 - self.distances[4]
+						if self.error[i] <= diff and not ((self.error[0] > -0.000004517 and self.error[0] < 0.000004517) and (self.error[1] > -0.0000047487 and self.error[1] < 0.0000047487)):
+							self.error[i] = diff
+						#print(type(self.error[i]))
+
+
 					if self.error[i] > self.p_error_limit_altitude:
 						self.p_error[i] = self.p_error_limit_altitude
 					elif self.error[i] < -self.p_error_limit_altitude:
