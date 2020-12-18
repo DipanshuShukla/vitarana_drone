@@ -56,9 +56,9 @@ class Control:
 		
 		# for bug0 algorithm
 		self.distances = [10.0, 10.0, 10.0, 10.0, 10.0] # [front, right, rear, left, bottom]
-		self.safe_pos = []
+		self.safe_pos = None
 		self.detection_distance = 6
-		self.safe_distance = 3
+		self.safe_distance = [4, 2.6]
 		self.encounter_time = 0.0
 
 		
@@ -110,8 +110,7 @@ class Control:
 
 		self.output = [0.0, 0.0, 0.0]  # [lat, long, alt]
 
-		self.p_error_limit = 0.00002
-		self.p_error_limit_altitude = 1
+		self.p_error_limit = [0.00002, 0.00002, 1]
 
 		# Publishing /edrone/drone_command, /altitude_error, /zero_error, /qr_command
 		self.cmd_pub = rospy.Publisher("/drone_command", edrone_cmd, queue_size=1)
@@ -125,7 +124,7 @@ class Control:
 		rospy.Subscriber("/edrone/gripper_check", String, self.gripper_check_callback)
 		rospy.Subscriber("/qr_status", Bool, self.qr_status_callback)
 		#rospy.Subscriber("/pid_tuning_altitude", PidTune, self.longitude_set_pid)
-		rospy.Subscriber("/edrone/range_finder_top", LaserScan, self.range_finder_top_callback)
+		rospy.Subscriber("/edrone/range_finder_top", LaserScan, self.range_finder_top_callback, queue_size=1)
 		rospy.Subscriber("/edrone/range_finder_bottom", LaserScan, self.range_finder_bottom_callback)
 
 		# to turn on the drone
@@ -199,8 +198,9 @@ class Control:
 	# range finder top callback function
 	def range_finder_top_callback(self, msg):
 		for i in range(4):
-			self.distances[i] = msg.ranges[i]
-			self.distances[i] = float(self.distances[i])
+			if msg.ranges[i] > 0.7:
+				self.distances[i] = msg.ranges[i]
+				self.distances[i] = float(self.distances[i])
 	
 	# range finder bottom callback function
 	def range_finder_bottom_callback(self, msg):
@@ -301,8 +301,8 @@ class Control:
 	# to check for an obstacle
 	def obstacle_encountered(self):
 		
-		if self.distances[3] <= self.detection_distance:
-			if self.distances[3] <= self.safe_distance:
+		if self.distances[0] <= self.detection_distance or self.distances[1] <= self.detection_distance or self.distances[2] <= self.detection_distance or self.distances[3] <= self.detection_distance:
+			if self.distances[0] <= self.safe_distance or self.distances[1] <= self.safe_distance or self.distances[2] <= self.safe_distance or self.distances[3] <= self.safe_distance:
 				if not self.encounter_time and self.distances[4] >= 2:
 					self.safe_pos = deepcopy(self.drone_position)
 					self.encounter_time = rospy.Time.now().to_sec()
@@ -313,11 +313,11 @@ class Control:
 					#self.encounter_time = 0
 			return True
 		else:
-			if not self.encounter_time:
+			if not self.encounter_time or True:
 				self.safe_pos = None
 				self.encounter_time = 0
 				#print("bye")
-			elif rospy.Time.now().to_sec() - self.encounter_time > 4:
+			elif rospy.Time.now().to_sec() - self.encounter_time > 0.5:
 				self.safe_pos = None
 				self.encounter_time = 0
 				#print("bye")
@@ -336,11 +336,20 @@ class Control:
 		if self.obstacle_encountered():
 			if self.distances[3] < self.safe_distance:
 				if self.encounter_time:
-					if rospy.Time.now().to_sec() - self.encounter_time > 2:
-						self.safe_pos[1] += 0.0000015
-					for i in range(3):
-						self.error[i] = self.safe_pos[i] - self.drone_position[i]
+					if rospy.Time.now().to_sec() - self.encounter_time > 2 or True:
+						# checking direction of the obstacke and updating the next position accordingly
+						if self.distances[3] < self.safe_distance[0] or self.distances[1] < self.safe_distance[0]:
+							self.error[0] = self.safe_pos[0] - self.drone_position[0]
+						if self.distances[0] < self.safe_distance[1] or self.distances[2] < self.safe_distance[1]:
+							self.error[1] = self.safe_pos[1] - self.drone_position[1]
+							print(self.distances[0])
+							
+
+						#self.safe_pos[1] += 0.0000015
+					#for i in range(3):
+						#self.error[i] = self.safe_pos[i] - self.drone_position[i]
 					#print("bug")
+					self.error[2] = self.safe_pos[2] - self.drone_position[2]
 				#else:
 					#print("not")
 
@@ -349,6 +358,7 @@ class Control:
 	def cmd(self):
 
 		if self.location_setpoints:
+			#print(self.safe_pos)
 
 			# Computing error (for proportional)
 			for i in range(3):
@@ -359,28 +369,24 @@ class Control:
 				)
 			if self.obstacle_encountered():
 				self.bug0_crawl()
-				self.p_error_limit = 0.00001
-			else:
-				self.p_error_limit = 0.00002
-				for i in range(3):
-
-					self.error[i] = (
-						self.location_setpoints[self.location_index][i] - self.drone_position[i]
-					)
+			#	self.p_error_limit = 0.00002
+			#else:
+			#	self.p_error_limit = 0.00002
+				
 
 			for i in range(3):
 
 				if i != 2:
-					if self.error[i] > self.p_error_limit:
-						self.p_error[i] = self.p_error_limit
-					elif self.error[i] < -self.p_error_limit:
-						self.p_error[i] = -self.p_error_limit
+					if self.error[i] > self.p_error_limit[i]:
+						self.p_error[i] = self.p_error_limit[i]
+					elif self.error[i] < -self.p_error_limit[i]:
+						self.p_error[i] = -self.p_error_limit[i]
 					else:
 						self.p_error[i] = self.error[i]
 						#print(type(self.error[i]))
 				else:
 
-					# to hover above a distance of 1m above the ground 
+					# to hover above a distance above the ground 
 					if self.distances[4] < 3:
 						diff = 3 - self.distances[4]
 						if self.error[i] <= diff and not ((self.error[0] > -0.000004517 and self.error[0] < 0.000004517) and (self.error[1] > -0.0000047487 and self.error[1] < 0.0000047487)):
@@ -388,10 +394,10 @@ class Control:
 						#print(type(self.error[i]))
 
 
-					if self.error[i] > self.p_error_limit_altitude:
-						self.p_error[i] = self.p_error_limit_altitude
-					elif self.error[i] < -self.p_error_limit_altitude:
-						self.p_error[i] = -self.p_error_limit_altitude
+					if self.error[i] > self.p_error_limit[i]:
+						self.p_error[i] = self.p_error_limit[i]
+					elif self.error[i] < -self.p_error_limit[i]:
+						self.p_error[i] = -self.p_error_limit[i]
 					else:
 						self.p_error[i] = self.error[i]
 
