@@ -172,22 +172,24 @@ class Control:
 				#print(pos)
 
 				temp = deepcopy(pos)
+				pos[-1] +=2
 
 				#print(self.location_setpoints[-1])
 
-				self.location_setpoints.append(self.location_setpoints[-1])
-				cur_height = self.location_setpoints[-1][-1]
-				self.location_setpoints[-1][-1] = cur_height if cur_height > pos[-1] else deepcopy(pos[-1])
+				#self.location_setpoints.append(self.location_setpoints[-1])
+				#cur_height = self.location_setpoints[-1][-1]
+				#self.location_setpoints[-1][-1] = cur_height if cur_height > pos[-1] else deepcopy(pos[-1])
 				
 				#print(self.location_setpoints[-1])
 
-				self.location_setpoints.append(pos)
-				self.location_setpoints[-1][-1] = self.location_setpoints[-2][-1]
+				#self.location_setpoints.append(pos)
+				#self.location_setpoints[-1][-1] = self.location_setpoints[-2][-1]
 
 				#print(self.location_setpoints[-1])
 
 				# next building
 				#print(temp)
+				self.location_setpoints.append(pos)
 				self.location_setpoints.append(temp)
 			#print(self.location_setpoints)
 
@@ -257,6 +259,7 @@ class Control:
 			):
 
 				self.arival_time = 0
+				print("Location {} reached.".format(self.location_index + 1))
 
 #				if self.location_setpoints[self.location_index] == self.box_location:
 #					# to command the gripper to pick package
@@ -300,10 +303,10 @@ class Control:
 		
 		if self.distances[3] <= self.detection_distance:
 			if self.distances[3] <= self.safe_distance:
-				if not self.encounter_time and self.distances[4] >=2:
+				if not self.encounter_time and self.distances[4] >= 2:
 					self.safe_pos = deepcopy(self.drone_position)
 					self.encounter_time = rospy.Time.now().to_sec()
-					print("hello")
+					#print("hello")
 
 				#if rospy.Time.now().to_sec() - self.encounter_time > 4:
 					#self.safe_pos = []
@@ -311,11 +314,11 @@ class Control:
 			return True
 		else:
 			if not self.encounter_time:
-				self.safe_pos = []
+				self.safe_pos = None
 				self.encounter_time = 0
 				#print("bye")
-			elif rospy.Time.now().to_sec() - self.encounter_time > 2:
-				self.safe_pos = []
+			elif rospy.Time.now().to_sec() - self.encounter_time > 4:
+				self.safe_pos = None
 				self.encounter_time = 0
 				#print("bye")
 
@@ -333,9 +336,13 @@ class Control:
 		if self.obstacle_encountered():
 			if self.distances[3] < self.safe_distance:
 				if self.encounter_time:
-					self.safe_pos[2] += 0.28
+					if rospy.Time.now().to_sec() - self.encounter_time > 2:
+						self.safe_pos[1] += 0.0000015
 					for i in range(3):
 						self.error[i] = self.safe_pos[i] - self.drone_position[i]
+					#print("bug")
+				#else:
+					#print("not")
 
 
 
@@ -352,9 +359,14 @@ class Control:
 				)
 			if self.obstacle_encountered():
 				self.bug0_crawl()
-			#	self.p_error_limit = 0.000006
-			#else:
-			#	self.p_error_limit = 0.000036
+				self.p_error_limit = 0.00001
+			else:
+				self.p_error_limit = 0.00002
+				for i in range(3):
+
+					self.error[i] = (
+						self.location_setpoints[self.location_index][i] - self.drone_position[i]
+					)
 
 			for i in range(3):
 
@@ -446,6 +458,11 @@ class Control:
 			self.qr_command_pub.publish(self.qr_command)
 
 			# to keep track of and update destination
+			for i in range(3):
+
+					self.error[i] = (
+						self.location_setpoints[self.location_index][i] - self.drone_position[i]
+					)#
 			self.set_waypiont()
 
 
