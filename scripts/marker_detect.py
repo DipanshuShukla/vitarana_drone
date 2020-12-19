@@ -10,7 +10,7 @@ import cv2, time
 import numpy as np
 import rospy
 
-from std_msgs.msg import Bool, Float32
+from std_msgs.msg import Bool, Float32, Int32MultiArray
 from geometry_msgs.msg import Vector3
 
 
@@ -34,7 +34,6 @@ class detector():
 
 		# Publishing /destination_coordinates, /qr_status
 		self.coordinates_pub = rospy.Publisher("/destination_coordinates", Vector3, queue_size=1)
-		self.qr_status_pub = rospy.Publisher("/qr_status", Bool, queue_size=1)
 
 		time.sleep(2.5)
 
@@ -59,7 +58,7 @@ class detector():
 
 		# image, reject levels level weights.
 		logo = self.cascade.detectMultiScale(gray, scaleFactor=1.05)
-
+		print(logo)
 		for (x, y, w, h) in logo:
 		    cv2.rectangle(self.img, (x, y), (x + w, y + h), (255, 255, 0), 2)
 		cv2.imshow("detected", self.img)

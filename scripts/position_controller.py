@@ -13,9 +13,9 @@
 from vitarana_drone.msg import *
 from pid_tune.msg import PidTune
 from sensor_msgs.msg import NavSatFix, LaserScan
-from std_msgs.msg import Float32, Bool, String
+from std_msgs.msg import Float32, Bool, String, Int32, Int32MultiArray
 import rospy
-import time
+import time, math
 from copy import deepcopy
 from geometry_msgs.msg import Vector3
 from vitarana_drone.srv import Gripper
@@ -51,6 +51,8 @@ class Control:
 		#print(self.location_setpoints)
 
 		self.location_index = 0
+		self.building_id = Int32()
+		self.building_id.data = 1
 
 		
 		
@@ -58,7 +60,7 @@ class Control:
 		self.distances = [10.0, 10.0, 10.0, 10.0, 10.0] # [front, right, rear, left, bottom]
 		self.safe_pos = None
 		self.detection_distance = 6
-		self.safe_distance = [4, 2.6]
+		self.safe_distance = [3, 2.6]
 		self.encounter_time = 0.0
 
 		
@@ -117,6 +119,9 @@ class Control:
 		self.altitude_pub = rospy.Publisher("/altitude_error", Float32, queue_size=1)
 		self.zero_pub = rospy.Publisher("/zero_error", Float32, queue_size=1)
 		self.qr_command_pub = rospy.Publisher("/qr_command", Bool, queue_size=1)
+		self.building_id_pub = rospy.Publisher("/edrone/curr_marker_id", Int32, queue_size=1)
+		self.err_x_m_pub = rospy.Publisher("/edrone/err_x_m", Float32, queue_size=1)
+		self.err_y_m_pub = rospy.Publisher("/edrone/err_y_m", Float32, queue_size=1)
 
 		# Subscribing to /edrone/gps, /edrone/gripper_check, /destination_coordinates, /qr_status, /edrone/range_finder_top
 		rospy.Subscriber("/edrone/gps", NavSatFix, self.gps_callback)
@@ -132,6 +137,15 @@ class Control:
 
 		# to delay time in the location for accuracy
 		self.arival_time = 0
+
+		# for marker detection
+		self.err_x_m_pub = Float32()
+		self.err_y_m_pub = Float32()
+		self.err_x_m_pub = -1.0
+		self.err_y_m_pub = -1.0
+		self.img_width = 400
+		self.hfov_rad = 1.3962634
+		self.focal_length = (self.img_width/2)/math.tan(self.hfov_rad/2)
 
 
 
@@ -271,16 +285,16 @@ class Control:
 #					self.drop_package()
 #					self.location_index += 1
 
-				if self.location_index == len(self.location_setpoints) - 2:
+				#if self.location_index == len(self.location_setpoints) - 2:
 					
-					if self.qr_scanned:
-						self.location_index += 1
-						self.qr_command.data = False
-					else:
-						self.qr_command.data = True
+					#if self.qr_scanned:
+					#	self.location_index += 1
+					#	self.qr_command.data = False
+					#else:
+					#	self.qr_command.data = True
 
 
-				elif not self.location_index == len(self.location_setpoints) - 1:
+				if not self.location_index == len(self.location_setpoints) - 1:
 
 					#print("Location {} reached.".format(self.location_index + 1))
 
@@ -291,6 +305,11 @@ class Control:
 					self.control_cmd.aux1 = 1000
 
 					print("Final location reached.")
+
+		self.building_id.data = ((self.location_index + 1) / 2)
+		#print(self.building_id)
+		if self.building_id.data < 1:
+			self.building_id.data = 1
 
 					#print("Tolerance:")
 					#print("lat = {}".format(self.error[0]))
@@ -340,16 +359,20 @@ class Control:
 						# checking direction of the obstacke and updating the next position accordingly
 						if self.distances[3] < self.safe_distance[0] or self.distances[1] < self.safe_distance[0]:
 							self.error[0] = self.safe_pos[0] - self.drone_position[0]
+							#if self.error[1] > -0.0000047487 and self.error[1] < 0.0000047487:
+								#self.error[2] = 4
 						if self.distances[0] < self.safe_distance[1] or self.distances[2] < self.safe_distance[1]:
 							self.error[1] = self.safe_pos[1] - self.drone_position[1]
-							print(self.distances[0])
+							#if self.error[0] > -0.000004517 and self.error[0] < 0.000004517:
+								#self.error[2] = 4
+							#print(self.distances[0])
 							
 
 						#self.safe_pos[1] += 0.0000015
 					#for i in range(3):
 						#self.error[i] = self.safe_pos[i] - self.drone_position[i]
 					#print("bug")
-					self.error[2] = self.safe_pos[2] - self.drone_position[2]
+					#self.error[2] = self.safe_pos[2] - self.drone_position[2]
 				#else:
 					#print("not")
 
@@ -463,6 +486,8 @@ class Control:
 
 			self.qr_command_pub.publish(self.qr_command)
 
+			
+
 			# to keep track of and update destination
 			for i in range(3):
 
@@ -470,6 +495,8 @@ class Control:
 						self.location_setpoints[self.location_index][i] - self.drone_position[i]
 					)#
 			self.set_waypiont()
+
+			self.building_id_pub.publish(self.building_id)
 
 
 
