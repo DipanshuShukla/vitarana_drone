@@ -48,7 +48,7 @@ class Control:
 		#self.location_setpoints.append([self.box_location[0], self.box_location[1], self.box_location[2] + 0.6])
 		#self.location_setpoints.append(self.box_location)
 
-		#print(self.location_setpoints)
+		print(self.location_setpoints)
 
 		self.location_index = 0
 		self.building_id = Int32()
@@ -120,8 +120,8 @@ class Control:
 		self.zero_pub = rospy.Publisher("/zero_error", Float32, queue_size=1)
 		self.qr_command_pub = rospy.Publisher("/qr_command", Bool, queue_size=1)
 		self.building_id_pub = rospy.Publisher("/edrone/curr_marker_id", Int32, queue_size=1)
-		self.err_x_m_pub = rospy.Publisher("/edrone/err_x_m", Float32, queue_size=1)
-		self.err_y_m_pub = rospy.Publisher("/edrone/err_y_m", Float32, queue_size=1)
+		self.Z_m_error_pub = rospy.Publisher("/edrone/Z_m_error", Float32, queue_size=1)
+		self.marker_scan_command_pub = rospy.Publisher("/edrone/marker_scan_cmd", Bool, queue_size=1)
 
 		# Subscribing to /edrone/gps, /edrone/gripper_check, /destination_coordinates, /qr_status, /edrone/range_finder_top
 		rospy.Subscriber("/edrone/gps", NavSatFix, self.gps_callback)
@@ -131,6 +131,10 @@ class Control:
 		#rospy.Subscriber("/pid_tuning_altitude", PidTune, self.longitude_set_pid)
 		rospy.Subscriber("/edrone/range_finder_top", LaserScan, self.range_finder_top_callback, queue_size=1)
 		rospy.Subscriber("/edrone/range_finder_bottom", LaserScan, self.range_finder_bottom_callback)
+		rospy.Subscriber("/edrone/marker_visibility", Bool, self.marker_visibility_callback)
+		rospy.Subscriber("/edrone/err_x_m", Float32, self.err_x_m_callback)
+		rospy.Subscriber("/edrone/err_y_m", Float32, self.err_y_m_callback)
+
 
 		# to turn on the drone
 		self.cmd_pub.publish(self.control_cmd)
@@ -139,15 +143,41 @@ class Control:
 		self.arival_time = 0
 
 		# for marker detection
-		self.err_x_m_pub = Float32()
-		self.err_y_m_pub = Float32()
-		self.err_x_m_pub = -1.0
-		self.err_y_m_pub = -1.0
-		self.img_width = 400
-		self.hfov_rad = 1.3962634
-		self.focal_length = (self.img_width/2)/math.tan(self.hfov_rad/2)
+		self.time = None
+		self.marker_visibility = False
+		self.marker_scan = Bool()
+		self.marker_scan.data =False
+		self.Z_m = Float32()
+		self.Z_m.data = 0.0
+		self.err_x_m = 0.0
+		self.err_y_m = 0.0
 
+	def err_x_m_callback(self, msg):
+		self.err_x_m = msg.data / 110692.0702932625
+		#print(self.err_x_m)
+		if self.marker_scan.data and (self.error[0] < 0.2 and self.error[0] > -0.02) and self.location_index == self.building_id.data * 2:
+			self.location_setpoints[self.location_index][0] += self.err_x_m
 
+	def err_y_m_callback(self, msg):
+		self.err_y_m = msg.data / (105292.0089353767)
+		#print(self.err_x_m)
+		if self.marker_scan.data and (self.error[1] < 0.2 and self.error[1] > -0.02) and self.location_index == self.building_id.data * 2:
+			self.location_setpoints[self.location_index][1] += self.err_y_m
+
+	# marker coordinates callback function
+	def marker_coordinates_callback(self, msg):
+		self.marker_coordinates[0] = msg.data[0]
+		self.marker_coordinates[1] = msg.data[1]
+		self.marker_coordinates[2] = msg.data[2]
+		self.marker_coordinates[3] = msg.data[3]
+
+		
+
+		#print(self.centre_x_pixel , self.centre_y_pixel)
+		print([self.err_x_m, self.err_y_m])
+
+	def marker_visibility_callback(self, msg):
+		self.marker_visibility = msg.data
 
 	# destination coordinates callback function
 	def destination_coordinates_callback(self, msg):
@@ -175,10 +205,12 @@ class Control:
 		self.drone_position[1] = msg.longitude
 		self.drone_position[2] = msg.altitude
 
+		self.Z_m.data = self.drone_position[-1] - self.building_coordinates[-1][-1]
+
 		if not self.location_setpoints:
 			#to hover at a height before comencing task
-			self.location_setpoints.append(self.drone_position)
-			self.location_setpoints[-1][-1] += 2
+			self.location_setpoints.append(deepcopy(self.drone_position))
+			self.location_setpoints[-1][-1] += 3
 			
 			for pos in self.building_coordinates:
 				pos[-1] += 1
@@ -254,6 +286,8 @@ class Control:
 			self.gripper_success = self.gripper_service(False)
 			self.package_picked = False
 
+	#def 
+
 	def set_waypiont(self):
 				# to move to next location
 		# checking tolerance in lat, long, alt respectively
@@ -294,14 +328,21 @@ class Control:
 					#	self.qr_command.data = True
 
 
-				if not self.location_index == len(self.location_setpoints) - 1:
+				if not self.location_index == 2 * self.building_id.data:
 
 					#print("Location {} reached.".format(self.location_index + 1))
-
+					self.marker_scan.data = False
 					self.location_index += 1
 
-				elif self.control_cmd.aux1 == 2000 and False:
+				elif self.location_index == 2 * self.building_id.data:
+					self.marker_scan.data = True
 
+					if self.marker_visibility and (self.err_x_m > -0.2 and self.err_x_m < 0.2) and (self.err_y_m > -0.2 and self.err_y_m < 0.2):
+						self.marker_scan.data = True
+						self.location_index += 1
+
+
+				elif self.control_cmd.aux1 == 2000 and False:
 					self.control_cmd.aux1 = 1000
 
 					print("Final location reached.")
@@ -382,6 +423,21 @@ class Control:
 
 		if self.location_setpoints:
 			#print(self.safe_pos)
+
+			# updating coordinates according to rthew marker position
+			if self.marker_scan.data and self.location_index == self.building_id.data * 2:
+				if not self.marker_visibility:
+					self.location_setpoints[self.location_index][2] += 0.08
+					self.time = None
+				elif (self.err_x_m > -0.2 and self.err_x_m < 0.2) and (self.err_y_m > -0.2 and self.err_y_m < 0.2):
+					if not self.time:
+						self.time = rospy.Time.now().to_sec()
+					elif rospy.Time.now().to_sec() - self.time > 0.3:
+						self.location_setpoints[self.location_index][2] -= 0.3
+						self.time = rospy.Time.now().to_sec()
+
+			else:
+				self.time = None
 
 			# Computing error (for proportional)
 			for i in range(3):
@@ -497,6 +553,9 @@ class Control:
 			self.set_waypiont()
 
 			self.building_id_pub.publish(self.building_id)
+			self.Z_m_error_pub.publish(self.Z_m)
+			self.marker_scan_command_pub.publish(self.marker_scan)
+			#print(self.Z_m)
 
 
 
