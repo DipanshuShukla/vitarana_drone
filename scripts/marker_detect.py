@@ -92,7 +92,7 @@ class detector():
 		gray = cv2.cvtColor(self.img, cv2.COLOR_BGR2GRAY)
 
 		# image, reject levels level weights.
-		logo = self.cascade.detectMultiScale(gray, scaleFactor=1.028)
+		logo = self.cascade.detectMultiScale(gray, scaleFactor=1.032)
 		#print(logo)
 		for (x, y, w, h) in logo:
 			#cv2.rectangle(self.img, (x, y), (x + w, y + h), (0,255,0), (h+w)/30)

@@ -110,6 +110,8 @@ class Control:
 		self.dif_error = [0.0, 0.0, 0.0]
 		self.sum_error = [0.0, 0.0, 0.0]  # Iterm
 
+		self.error_check = [0.0, 0.0, 0.0]
+
 		self.output = [0.0, 0.0, 0.0]  # [lat, long, alt]
 
 		self.p_error_limit = [0.00002, 0.00002, 1]
@@ -151,18 +153,26 @@ class Control:
 		self.Z_m.data = 0.0
 		self.err_x_m = 0.0
 		self.err_y_m = 0.0
+		self.err_x = 0.0
+		self.err_y = 0.0
+		self.search_circle = None
+		self.search_index = 0
+
+		self.timeout = None
 
 	def err_x_m_callback(self, msg):
-		self.err_x_m = msg.data / 110692.0702932625
+		self.err_x_m = msg.data
+		self.err_x = msg.data / 110692.0702932625
 		#print(self.err_x_m)
-		if self.marker_scan.data and (self.error[0] < 0.2 and self.error[0] > -0.02) and self.location_index == self.building_id.data * 2:
-			self.location_setpoints[self.location_index][0] += self.err_x_m
+		if self.marker_scan.data and ((self.error[0] > -0.000004517 and self.error[0] < 0.000004517) and (self.error[1] > -0.0000047487 and self.error[1] < 0.0000047487)) and self.location_index == self.building_id.data * 2:
+			self.search_circle[self.search_index][0] += self.err_x
 
 	def err_y_m_callback(self, msg):
-		self.err_y_m = msg.data / (105292.0089353767)
+		self.err_y_m = msg.data
+		self.err_y = msg.data / (105292.0089353767)
 		#print(self.err_x_m)
-		if self.marker_scan.data and (self.error[1] < 0.2 and self.error[1] > -0.02) and self.location_index == self.building_id.data * 2:
-			self.location_setpoints[self.location_index][1] += self.err_y_m
+		if self.marker_scan.data and ((self.error[0] > -0.000004517 and self.error[0] < 0.000004517) and (self.error[1] > -0.0000047487 and self.error[1] < 0.0000047487)) and self.location_index == self.building_id.data * 2:
+			self.search_circle[self.search_index][1] += self.err_y
 
 	# marker coordinates callback function
 	def marker_coordinates_callback(self, msg):
@@ -292,18 +302,18 @@ class Control:
 				# to move to next location
 		# checking tolerance in lat, long, alt respectively
 		if (
-			(self.error[0] > -0.000004517 and self.error[0] < 0.000004517)
-			and (self.error[1] > -0.0000047487 and self.error[1] < 0.0000047487)
-			and (self.error[2] > -0.2 and self.error[2] < 0.2)
+			(self.error_check[0] > -0.000004517 and self.error_check[0] < 0.000004517)
+			and (self.error_check[1] > -0.0000047487 and self.error_check[1] < 0.0000047487)
+			and (self.error_check[2] > -0.2 and self.error_check[2] < 0.2)
 		):
 
 			if not self.arival_time:
 				self.arival_time = rospy.Time.now().to_sec()
 
 			elif rospy.Time.now().to_sec() - self.arival_time > 1 and (
-				(self.error[0] > -0.000004517 and self.error[0] < 0.000004517)
-				and (self.error[1] > -0.0000047487 and self.error[1] < 0.0000047487)
-				and (self.error[2] > -0.2 and self.error[2] < 0.2)
+				(self.error_check[0] > -0.000004517 and self.error_check[0] < 0.000004517)
+				and (self.error_check[1] > -0.0000047487 and self.error_check[1] < 0.0000047487)
+				and (self.error_check[2] > -0.2 and self.error_check[2] < 0.2)
 			):
 
 				self.arival_time = 0
@@ -426,26 +436,59 @@ class Control:
 
 			# updating coordinates according to rthew marker position
 			if self.marker_scan.data and self.location_index == self.building_id.data * 2:
-				if not self.marker_visibility:
-					self.location_setpoints[self.location_index][2] += 0.08
+
+				if not self.search_circle and not self.marker_visibility:
+					lat = self.location_setpoints[self.location_index][0]
+					lon = self.location_setpoints[self.location_index][1]
+					alt = self.location_setpoints[self.location_index][2] + 8
+					self.search_circle = [[lat + 0.00004, lon, alt], [lat, lon + 0.00004, alt], [lat - 0.00004, lon, alt], [lat, lon - 0.00004, alt]]
+					self.search_index = 0
+
+					#self.location_setpoints[self.location_index][2] += 0.08
 					self.time = None
+				
 				elif (self.err_x_m > -0.2 and self.err_x_m < 0.2) and (self.err_y_m > -0.2 and self.err_y_m < 0.2):
 					if not self.time:
 						self.time = rospy.Time.now().to_sec()
-					elif rospy.Time.now().to_sec() - self.time > 0.3:
-						self.location_setpoints[self.location_index][2] -= 0.3
+					elif rospy.Time.now().to_sec() - self.time > 0.4:
+						if self.distances[4] > 7:
+							self.location_setpoints[self.location_index][2] -= 0.2
+				
 						self.time = rospy.Time.now().to_sec()
+				
 
 			else:
+				self.search_circle = None
 				self.time = None
 
 			# Computing error (for proportional)
 			for i in range(3):
-
-
 				self.error[i] = (
-					self.location_setpoints[self.location_index][i] - self.drone_position[i]
-				)
+						self.location_setpoints[self.location_index][i] - self.drone_position[i]
+					)
+				self.error_check[i] = (
+						self.location_setpoints[self.location_index][i] - self.drone_position[i]
+					)
+				
+				if self.marker_scan.data and self.search_circle:
+					#print(self.search_index)
+					self.error[i] = (
+						self.search_circle[self.search_index][i] - self.drone_position[i]
+					)
+					
+				
+
+			#if self.marker_scan.data and self.location_index == self.building_id.data * 2:
+			#	self.error[0] = self.err_x_m
+			#	self.error[1] = self.err_y_m
+
+			if ((self.error[0] > -0.000004517 and self.error[0] < 0.000004517) and (self.error[1] > -0.0000047487 and self.error[1] < 0.0000047487)) and self.distances[-1] >= 4 and not self.marker_visibility:
+				if not self.timeout:
+					self.timeout = rospy.Time.now().to_sec()
+				if self.search_index < 3 and rospy.Time.now().to_sec() - self.timeout > 1:
+					self.search_index += 1
+					self.timeout = None
+
 			if self.obstacle_encountered():
 				self.bug0_crawl()
 			#	self.p_error_limit = 0.00002
@@ -542,14 +585,6 @@ class Control:
 
 			self.qr_command_pub.publish(self.qr_command)
 
-			
-
-			# to keep track of and update destination
-			for i in range(3):
-
-					self.error[i] = (
-						self.location_setpoints[self.location_index][i] - self.drone_position[i]
-					)#
 			self.set_waypiont()
 
 			self.building_id_pub.publish(self.building_id)
