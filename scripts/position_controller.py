@@ -77,7 +77,7 @@ class Control:
 		self.package_picked = False
 		self.crawling = False
 
-		time.sleep(3.2)
+		time.sleep(6)
 
 		# wait for the gripper sevice to be running
 		#rospy.wait_for_service('/edrone/activate_gripper')
@@ -166,14 +166,14 @@ class Control:
 		self.err_x = msg.data / 110692.0702932625
 		#print(self.err_x_m)
 		if self.marker_scan.data and ((self.error[0] > -0.000004517 and self.error[0] < 0.000004517) and (self.error[1] > -0.0000047487 and self.error[1] < 0.0000047487)) and self.location_index == self.building_id.data * 2:
-			self.search_circle[self.search_index][0] += self.err_x / 2
+			self.search_circle[self.search_index][0] += self.err_x
 
 	def err_y_m_callback(self, msg):
 		self.err_y_m = msg.data
 		self.err_y = msg.data / (105292.0089353767)
 		#print(self.err_x_m)
 		if self.marker_scan.data and ((self.error[0] > -0.000004517 and self.error[0] < 0.000004517) and (self.error[1] > -0.0000047487 and self.error[1] < 0.0000047487)) and self.location_index == self.building_id.data * 2:
-			self.search_circle[self.search_index][1] += self.err_y / 2
+			self.search_circle[self.search_index][1] += self.err_y
 
 	# marker coordinates callback function
 	def marker_coordinates_callback(self, msg):
@@ -216,19 +216,20 @@ class Control:
 		self.drone_position[1] = msg.longitude
 		self.drone_position[2] = msg.altitude
 
-		self.Z_m.data = self.drone_position[-1] - self.building_coordinates[-1][-1]
+		self.Z_m.data = self.drone_position[-1] - deepcopy(self.building_coordinates)[self.building_id.data - 1][-1]
 
 		if not self.location_setpoints:
 			#to hover at a height before comencing task
 			self.location_setpoints.append(deepcopy(self.drone_position))
 			self.location_setpoints[-1][-1] += 3
 			
-			for pos in self.building_coordinates:
-				pos[-1] += 1
+			for posi in self.building_coordinates:
+				pos = deepcopy(posi)
+				#pos[-1] += 1
 				#print(pos)
 
-				temp = deepcopy(pos)
-				pos[-1] +=2
+				temp = deepcopy(posi)
+				temp[-1] +=3
 
 				#print(self.location_setpoints[-1])
 
@@ -245,8 +246,11 @@ class Control:
 
 				# next building
 				#print(temp)
-				self.location_setpoints.append(pos)
 				self.location_setpoints.append(temp)
+				self.location_setpoints.append(pos)
+				
+				
+				
 			#print(self.location_setpoints)
 
 		# print(self.drone_position)
@@ -355,11 +359,13 @@ class Control:
 					print("Final location reached.")
 
 		if self.location_index == 2 * self.building_id.data:
+			#print(self.Z_m, self.distances[-1])
 
 			if self.marker_visibility and (self.err_x_m > -0.2 and self.err_x_m < 0.2) and (self.err_y_m > -0.2 and self.err_y_m < 0.2):
 				self.marker_scan.data = False
 				if not self.location_index == len(self.location_setpoints) -1:
 					self.location_index += 1
+					print("hi")
 			else:
 				self.marker_scan.data = True
 
@@ -453,7 +459,7 @@ class Control:
 					lat = self.location_setpoints[self.location_index][0]
 					lon = self.location_setpoints[self.location_index][1]
 					alt = self.location_setpoints[self.location_index][2] + 7.5
-					self.search_circle = [[lat - 0.00006, lon + 0.00006, alt], [lat - 0.00006, lon - 0.00006, alt], [lat + 0.00006, lon - 0.00006, alt], [lat + 0.00006, lon + 0.00006, alt]]
+					self.search_circle = [[lat,lon, alt - 6.5], [lat - 0.00006, lon + 0.00006, alt], [lat - 0.00006, lon - 0.00006, alt], [lat + 0.00006, lon - 0.00006, alt], [lat + 0.00006, lon + 0.00006, alt]]
 					#self.search_circle = [[lat - 0.00006, lon - 0.00006, alt], [lat + 0.00006, lon - 0.00006, alt], [lat + 0.00006, lon + 0.00006, alt]]
 					self.search_index = 0
 
@@ -499,10 +505,10 @@ class Control:
 			#	self.error[0] = self.err_x_m
 			#	self.error[1] = self.err_y_m
 
-			if ((self.error[0] > -0.000004517 and self.error[0] < 0.000004517) and (self.error[1] > -0.0000047487 and self.error[1] < 0.0000047487)) and self.distances[-1] >= 4 and not self.marker_visibility:
+			if ((self.error[0] > -0.000004517 and self.error[0] < 0.000004517) and (self.error[1] > -0.0000047487 and self.error[1] < 0.0000047487) and(self.error[2] > -0.2 and self.error_check[2] < 0.2)) and not self.marker_visibility:
 				if not self.timeout:
 					self.timeout = rospy.Time.now().to_sec()
-				if self.search_index < 3 and rospy.Time.now().to_sec() - self.timeout > 1:
+				if self.search_index < 4 and rospy.Time.now().to_sec() - self.timeout > 1:
 					self.search_index += 1
 					self.timeout = None
 
@@ -528,10 +534,10 @@ class Control:
 					# to hover above a distance above the ground 
 					if self.distances[4] < 3:
 						diff = 3 - self.distances[4]
-						if self.error[i] <= diff and not ((self.error[0] > -0.000004517 and self.error[0] < 0.000004517) and (self.error[1] > -0.0000047487 and self.error[1] < 0.0000047487)):
+						if self.error[i] <= diff and not ((self.error[0] > -0.00001 and self.error[0] < 0.00001) and (self.error[1] > -0.00001 and self.error[1] < 0.00001)):
 							self.error[i] = diff
-						#print(type(self.error[i]))
-
+						
+						#print(type(self.error[i])),
 
 					if self.error[i] > self.p_error_limit[i]:
 						self.p_error[i] = self.p_error_limit[i]
