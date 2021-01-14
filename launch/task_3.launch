@@ -10,7 +10,7 @@
         <node name="marker_detect" type="marker_detect.py" pkg="vitarana_drone"/>
 
         <arg name="record" default="false"/>
-		<arg name="duration" default="120"/>
+		<arg name="duration" default="140"/>
 		<arg name="rec_name" default="Task_3_VD.bag"/>
 
 
