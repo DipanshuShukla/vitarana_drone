@@ -536,7 +536,7 @@ class Control:
 					lat = self.destination[0]
 					lon = self.destination[1]
 					alt = self.destination[2] + 10
-					self.search_circle = [[lat,lon, alt + 1], [lat - 0.00006, lon + 0.00006, alt], [lat - 0.00006, lon - 0.00006, alt], [lat + 0.00006, lon - 0.00006, alt], [lat + 0.00006, lon + 0.00006, alt]]
+					self.search_circle = [[lat,lon, alt], [lat + 0.00006, lon + 0.00006, alt], [lat - 0.00006, lon + 0.00006, alt], [lat - 0.00006, lon - 0.00006, alt], [lat + 0.00006, lon - 0.00006, alt]]
 					#self.search_circle = [[lat - 0.00006, lon - 0.00006, alt], [lat + 0.00006, lon - 0.00006, alt], [lat + 0.00006, lon + 0.00006, alt]]
 					self.search_index = 0
 
@@ -547,7 +547,7 @@ class Control:
 					if not self.time:
 						self.time = rospy.Time.now().to_sec()
 					elif rospy.Time.now().to_sec() - self.time > 0.4:
-						if self.Z_m.data > 1:
+						if self.Z_m.data > 0.8:
 							self.search_circle[self.search_index][2] -= 1
 				
 						self.time = rospy.Time.now().to_sec()
