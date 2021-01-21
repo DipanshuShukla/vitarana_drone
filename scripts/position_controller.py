@@ -81,6 +81,8 @@ class Control:
 		self.package_picked = False
 		self.crawling = False
 
+		self.drop_pos = None
+
 		time.sleep(2)
 
 		# wait for the gripper sevice to be running
@@ -256,7 +258,7 @@ class Control:
 		if self.Z_m:
 			self.Z_m.data = float(self.drone_position[-1] - deepcopy(self.destination)[-1])
 			if self.destination_cmd == "Drop":
-				self.Z_m.data -= 1
+				self.Z_m.data += 1
 
 		# print(self.drone_position)
 
@@ -295,12 +297,14 @@ class Control:
 	# function to pick package up
 	def pick_package(self):
 		self.gripper_success = False
-		while self.package_pickable and not self.gripper_success:
+		while not self.gripper_success:
 			self.gripper_success = self.gripper_service(True)
-
-		if self.gripper_success:
 			self.package_picked = True
 			self.mission_status.data = True
+
+		#if self.gripper_success:
+		#	self.package_picked = True
+		#	self.mission_status.data = True
 
 
 
@@ -311,8 +315,7 @@ class Control:
 			self.package_picked = False
 
 			#self.safe_pos2 = deepcopy(self.drone_position)
-			#self.safe_pos2[-1] += 4
-
+			#self.safe_pos2[-1] += 3
 
 	def set_waypiont(self):
 
@@ -346,14 +349,19 @@ class Control:
 
 				# when hovering above the marker
 				if self.marker_visibility and (self.err_x_m > -0.2 and self.err_x_m < 0.2) and (self.err_y_m > -0.2 and self.err_y_m < 0.2):
-					if self.Z_m.data < 1:
+					
+					if not self.drop_pos:
+						self.drop_pos = deepcopy(self.drone_position)
+						self.drop_pos[-1] -= self.Z_m.data - 0.8
+					
+					#if self.Z_m.data < 1:
 
-						self.drop_package()
-						self.mission_status.data = True
+					#	self.drop_package()
+					#	self.mission_status.data = True
 						#print("dropped")
 
-						self.mission_status_pub.publish(self.mission_status)
-						self.update_destination = True
+					#	self.mission_status_pub.publish(self.mission_status)
+					#	self.update_destination = True
 
 
 		if self.destination_cmd == "Drop" and self.update_destination:
@@ -525,6 +533,7 @@ class Control:
 
 		if not self.destination_cmd == "Drop":
 			self.marker_scan.data = False
+			self.drop_pos = None
 
 		if True:
 			#print(self.safe_pos)
@@ -548,7 +557,7 @@ class Control:
 						self.time = rospy.Time.now().to_sec()
 					elif rospy.Time.now().to_sec() - self.time > 0.4:
 						if self.Z_m.data > 0.8:
-							self.search_circle[self.search_index][2] -= 1
+							self.search_circle[self.search_index][2] -= 0
 				
 						self.time = rospy.Time.now().to_sec()
 				
@@ -582,12 +591,31 @@ class Control:
 					self.error[i] = (
 						self.search_circle[self.search_index][i] - self.drone_position[i]
 					)
+
+				if self.drop_pos and self.destination_cmd == "Drop":
+					self.error[i] = self.drop_pos[i] - self.drone_position[i]
+
+
 				if self.safe_pos2:
 					self.error[i] = self.safe_pos2[i] - self.drone_position[i]
 
-				if self.safe_pos2 and ((self.error[0] > -0.000004517 and self.error[0] < 0.000004517) and (self.error[1] > -0.0000047487 and self.error[1] < 0.0000047487) and(self.error[2] > -0.2 and self.error[2] < 0.2)):
-					self.safe_pos2 = None
-					print("safe_pos2 removed")
+			
+			if self.drop_pos and ((self.error[0] > -0.000004517 and self.error[0] < 0.000004517) and (self.error[1] > -0.0000047487 and self.error[1] < 0.0000047487) and(self.error[2] > -0.2 and self.error[2] < 0.2)):
+					
+					self.drop_package()
+					self.mission_status.data = True
+					#print("dropped")
+
+					self.mission_status_pub.publish(self.mission_status)
+					self.update_destination = True
+
+					self.drop_pos = None
+					print("drop_pos removed")
+
+
+			if self.safe_pos2 and ((self.error[0] > -0.000004517 and self.error[0] < 0.000004517) and (self.error[1] > -0.0000047487 and self.error[1] < 0.0000047487) and(self.error[2] > -0.2 and self.error[2] < 0.2)):
+				self.safe_pos2 = None
+				print("safe_pos2 removed")
 
 
 					
@@ -607,6 +635,7 @@ class Control:
 			#else:
 			#   self.p_error_limit = 0.00002
 
+			self.p_error_limit = [2.5/110692.0702932625, 2.5/105292.0089353767, 1.4]
 
 			if (self.error[2] > -0.2 and self.error[2] < 0.2):
 				self.p_error_limit = [10/110692.0702932625, 10/105292.0089353767, 1.4]
