@@ -352,7 +352,7 @@ class Control:
 					
 					if not self.drop_pos:
 						self.drop_pos = deepcopy(self.drone_position)
-						self.drop_pos[-1] -= self.Z_m.data - 0.8
+						self.drop_pos[-1] -= self.Z_m.data + 0.3
 					
 					#if self.Z_m.data < 1:
 
@@ -640,12 +640,15 @@ class Control:
 			if (self.error[2] > -0.2 and self.error[2] < 0.2) and not self.drop_pos:
 				self.p_error_limit = [10/110692.0702932625, 10/105292.0089353767, 1.4]
 
-			if (not ((self.error[0] > -0.000004517 and self.error[0] < 0.000004517) or (self.error[1] > -0.0000047487 and self.error[1] < 0.0000047487))) or self.obstacle_encountered() or (self.distances[4] < 4 if not self.package_picked else False):
+			if (not ((self.error[0] > -0.000004517 and self.error[0] < 0.000004517) or (self.error[1] > -0.0000047487 and self.error[1] < 0.0000047487))) or self.obstacle_encountered() or (self.distances[4] < 6 if not self.package_picked else False):
 				
 				self.p_error_limit = [2.5/110692.0702932625, 2.5/105292.0089353767, 1.4]
 
 			elif self.marker_scan.data and self.destination_cmd == "Drop" and self.marker_visibility:
 				self.p_error_limit = [2.5/110692.0702932625, 2.5/105292.0089353767, 1.4]
+
+			if self.drop_pos:
+				self.p_error_limit[-1] = 0.5
 
 			for i in range(3):
 
