@@ -258,7 +258,7 @@ class Control:
 		if self.Z_m:
 			self.Z_m.data = float(self.drone_position[-1] - deepcopy(self.destination)[-1])
 			if self.destination_cmd == "Drop":
-				self.Z_m.data += 1
+				self.Z_m.data -= 1
 
 		# print(self.drone_position)
 
@@ -637,7 +637,7 @@ class Control:
 
 			self.p_error_limit = [2.5/110692.0702932625, 2.5/105292.0089353767, 1.4]
 
-			if (self.error[2] > -0.2 and self.error[2] < 0.2):
+			if (self.error[2] > -0.2 and self.error[2] < 0.2) and not self.drop_pos:
 				self.p_error_limit = [10/110692.0702932625, 10/105292.0089353767, 1.4]
 
 			if (not ((self.error[0] > -0.000004517 and self.error[0] < 0.000004517) or (self.error[1] > -0.0000047487 and self.error[1] < 0.0000047487))) or self.obstacle_encountered() or (self.distances[4] < 4 if not self.package_picked else False):

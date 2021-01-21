@@ -60,7 +60,7 @@ class detector():
 		self.visibility = Bool()
 		self.visibility.data = False
 
-		self.scaleFactor = 1.03		
+		self.scaleFactor = 1.05		
 
 
 		# Publishing /destination_coordinates, /qr_status
