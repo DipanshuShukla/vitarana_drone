@@ -75,10 +75,10 @@ class detector():
 		self.marker_data.err_x_m = 0.0
 		self.marker_data.err_y_m = 0.0
 
-		time.sleep(3)
+		time.sleep(4)
 
 
-		self.view_img = True
+		self.view_img = False
 	
 
 	def marker_scan_cmd_callback(self,msg):

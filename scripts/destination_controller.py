@@ -2,7 +2,7 @@
 
 # ros node for setting the destination coordinates
 
-import rospy
+import rospy, time
 from copy import deepcopy
 from sensor_msgs.msg import NavSatFix
 
@@ -58,6 +58,8 @@ class destination():
 		rospy.Subscriber("/edrone/gps", NavSatFix, self.gps_callback)
 
 		# for data to be pu blished
+
+		time.sleep(2)
 
 		
 
@@ -124,6 +126,8 @@ class destination():
 				print(destination)
 
 			print(self.destination_list[self.destination_index][3])
+
+
 
 
 

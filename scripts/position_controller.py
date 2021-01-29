@@ -83,7 +83,7 @@ class Control:
 
 		self.drop_pos = None
 
-		time.sleep(2)
+		time.sleep(4)
 
 		# wait for the gripper sevice to be running
 		#rospy.wait_for_service('/edrone/activate_gripper')
