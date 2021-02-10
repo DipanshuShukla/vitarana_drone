@@ -9,9 +9,7 @@
         <node name="gripper_service" type="gripper_service.py" pkg="vitarana_drone"/>
 
         <node name="attitude_controller" type="attitude_controller.py" pkg="vitarana_drone"/>
-        <node name="position_controller" type="position_controller.py" pkg="vitarana_drone"/>
-        <node name="marker_detect" type="marker_detect.py" pkg="vitarana_drone"/>
-        <node name="destination_controller" type="destination_controller.py" pkg="vitarana_drone"/>
+        
 
 
         <arg name="record" default="false"/>

@@ -2,7 +2,7 @@
 
 # ros node for setting the destination coordinates
 
-import rospy, time
+import rospy, time, math
 from copy import deepcopy
 from sensor_msgs.msg import NavSatFix
 
@@ -11,12 +11,42 @@ from std_msgs.msg import Float32, Bool, String, Int32
 # change filename as needed
 FILE_NAME = "/home/codebunny/catkin_ws/src/vitarana_drone/scripts/manifest.csv"
 
+# data structure for storing missions
+class mission:
+	def __init__(self):
+		self.start = None
+		self.end = None
+		self.distance = 0.0
+		self.objective = None
 
-class destination():
+class mission_planner:
+	def __init__(self):
+		self.mission_list = []
+
+	def add(self,item):
+		# item is [objective, start, end]
+		m = mission()
+		m.objective = objective
+		m.start = start
+		m.end = end
+
+		# calculating linear distance
+		# d**2 = (x2 - x1)**2 + (y2 - y1)**2
+		m.distance = (end[0] - start[0])**2 + (end[1] - start[1])**2
+
+		self.mission_list.append(m)
+
+
+	def plan_mission(self):
+		pass
+
+
+class destination:
 	def __init__(self, csv_file):
 		
 		rospy.init_node('destination_controller') #Initialise rosnode 
 
+		self.missions = []
 		self.destination_list = [] # contains [lat, lon, alt, cmd]
 		self.destination_index = 0
 
@@ -27,11 +57,12 @@ class destination():
 
 
 		# to calculate box location
-		self.A1_pos = [18.9999864489, 71.9999430161, 8.44099749139] # lat, lon, alt
+		self.A1_pos = [18.9998102845, 72.000142461, 16.757981] # lat, lon, alt
+		self.X1_pos = [18.9999367615, 72.000142461, 16.757981] # lat, lon, alt
 		self.cell_size = [self.m_to_lat(1.5), self.m_to_lon(1.5)] # lat, lon
+		self.delivery_grid = "ABC"
+		self.return_grid = "XYZ"
 
-
-		
 
 		self.building_id = Int32()
 		self.building_id.data = 1
@@ -39,7 +70,6 @@ class destination():
 		self.init_pos = None
 
 
-		print("Data loaded...")
 
 
 		# to check if the drone completed the current mission
@@ -54,8 +84,17 @@ class destination():
 
 
 		# subscribers
-		rospy.Subscriber("/edrone/mission_status", Bool, self.mission_status_callback)
+		#rospy.Subscriber("/edrone/mission_status", Bool, self.mission_status_callback)
 		rospy.Subscriber("/edrone/gps", NavSatFix, self.gps_callback)
+
+		# loading missions from the csv
+		print("Loading data...")
+			
+
+		f= open(self.csv_file, "r")
+									
+		for line in f:
+			print
 
 		# for data to be pu blished
 
@@ -78,54 +117,40 @@ class destination():
 
 			# reading csv file and populating the destination array
 			print("Loading data...")
+			
+
 			f= open(self.csv_file, "r")
-
+									
 			for line in f:
-
-				items = line.split(",")
-
-				pickup_zone = self.cell_to_coordinates(items[0])
-				pickup_zone_copy = deepcopy(pickup_zone)
-				pickup_zone_copy[-2] += 4
-				pickup_zone_copy[-1] = "Reach"
-
-				items = [float(item) for item in items[1:]]
-				items[-1] += 1 
-				items.append("Drop")
-				items_copy = deepcopy(items)
-				
-				items_copy[-2] += 4
-				items_copy[-1] = "Reach"
-
-				self.destination_list.append(pickup_zone_copy)
-				self.destination_list.append(pickup_zone)
-				self.destination_list.append(pickup_zone_copy)
-
-				self.destination_list.append(items_copy)
-				self.destination_list.append(items)
+									
+				#items = line.split(",")
+									
 				#self.destination_list.append(items_copy)
-
+									
 			# final pos
 			self.init_pos.append("Sleep")
-
+									
 			init_pos2 = deepcopy(first_pos)
-
+									
 			self.destination_list.append(init_pos2)
-
+									
 			self.destination_list.append(self.init_pos)
 
-			self.destination = NavSatFix()
-			self.destination.latitude = self.destination_list[-3][0]
-			self.destination.longitude = self.destination_list[-3][1]
-			self.destination.altitude = self.destination_list[-3][2]
 
-			self.destination_cmd = String()
-			self.destination_cmd.data = self.destination_list[-3][3]
+			print("Data loaded...")
 
 			for destination in self.destination_list:
 				print(destination)
 
-			print(self.destination_list[self.destination_index][3])
+			#print(self.destination_list[self.destination_index][3])
+
+			self.destination = NavSatFix()
+			self.destination.latitude = self.destination_list[0][0]
+			self.destination.longitude = self.destination_list[0][1]
+			self.destination.altitude = self.destination_list[0][2]
+
+			self.destination_cmd = String()
+			self.destination_cmd.data = self.destination_list[0][3]
 
 
 
@@ -147,13 +172,15 @@ class destination():
 
 
 	# convert cell ID to lat, lon, alt
-	def cell_to_coordinates(self, cell_ID):
+	def cell_to_coordinates(self, cell_ID, delivery):
 		
-		cells = "ABC"
+		cells = self.delivery_grid if delivery else self.return_grid
+		pos = self.A1_pos if delivery else self.X1_pos
+		
 
-		lat = self.A1_pos[0] + self.cell_size[0] * cells.index(cell_ID[0])
-		lon = self.A1_pos[1] + self.cell_size[1] * (int(cell_ID[1]) - 1)
-		alt = self.A1_pos[2]
+		lat = self.pos[0] + self.cell_size[0] * cells.index(cell_ID[0])
+		lon = self.pos[1] + self.cell_size[1] * (int(cell_ID[1]) - 1)
+		alt = self.pos[2]
 
 		return [lat, lon, alt, "Pickup"]
 

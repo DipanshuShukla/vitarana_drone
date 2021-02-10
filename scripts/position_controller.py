@@ -51,6 +51,8 @@ class Control:
 		self.mission_status = Bool()
 		self.mission_status.data = False
 
+		self.destination_set = False
+
 
 		#self.location_setpoints.append([self.location_setpoints[-1][0], self.box_location[1], self.location_setpoints[-1][2]])
 
@@ -156,7 +158,7 @@ class Control:
 
 		# Subscribing to /edrone/gps, /edrone/gripper_check, /destination_coordinates, /qr_status, /edrone/range_finder_top
 		rospy.Subscriber("/edrone/gps", NavSatFix, self.gps_callback)
-		rospy.Subscriber("/destination_coordinates", Vector3, self.destination_coordinates_callback)
+		#rospy.Subscriber("/destination_coordinates", Vector3, self.destination_coordinates_callback)
 		rospy.Subscriber("/edrone/gripper_check", String, self.gripper_check_callback)
 		rospy.Subscriber("/qr_status", Bool, self.qr_status_callback)
 		#rospy.Subscriber("/pid_tuning_altitude", PidTune, self.longitude_set_pid)
@@ -177,9 +179,12 @@ class Control:
 		# to delay time in the location for accuracy
 		self.arival_time = 0
 
+		print("Initialized ...OK")
+
 
 	# destination coordinates callback
 	def destination_callback(self, msg):
+		self.destination_set = True
 		self.destination[0] = msg.latitude
 		self.destination[1] = msg.longitude
 		self.destination[2] = msg.altitude
@@ -230,18 +235,18 @@ class Control:
 		self.marker_visibility = msg.data
 
 	# destination coordinates callback function
-	def destination_coordinates_callback(self, msg):
-		if self.qr_scanned:
-			self.drop_location = [msg.x, msg.y, msg.z]
-			
-			# adding scanned location to the location setpoint list
-			if not self.drop_location == self.location_setpoints[-2]:
-				self.location_setpoints.append([self.box_location[0], self.box_location[1], self.box_location[2] + 2]) # hover at a height
-				#self.location_setpoints.append([self.drop_location[0], self.location_setpoints[-1][1], self.location_setpoints[-1][2]])
-				self.location_setpoints.append([self.drop_location[0], self.drop_location[1], self.location_setpoints[-1][2]])
-				self.location_setpoints.append([self.drop_location[0], self.drop_location[1], self.drop_location[2] + 2])
-				self.location_setpoints.append(self.drop_location)
-				self.location_setpoints.append([self.drop_location[0], self.drop_location[1], self.drop_location[2] + 2])
+	'''def destination_coordinates_callback(self, msg):
+					if self.qr_scanned:
+						self.drop_location = [msg.x, msg.y, msg.z]
+						
+						# adding scanned location to the location setpoint list
+						if not self.drop_location == self.location_setpoints[-2]:
+							self.location_setpoints.append([self.box_location[0], self.box_location[1], self.box_location[2] + 2]) # hover at a height
+							#self.location_setpoints.append([self.drop_location[0], self.location_setpoints[-1][1], self.location_setpoints[-1][2]])
+							self.location_setpoints.append([self.drop_location[0], self.drop_location[1], self.location_setpoints[-1][2]])
+							self.location_setpoints.append([self.drop_location[0], self.drop_location[1], self.drop_location[2] + 2])
+							self.location_setpoints.append(self.drop_location)
+							self.location_setpoints.append([self.drop_location[0], self.drop_location[1], self.drop_location[2] + 2])'''
 
 
 
@@ -531,221 +536,223 @@ class Control:
 
 	def cmd(self):
 
-		if not self.destination_cmd == "Drop":
-			self.marker_scan.data = False
-			self.drop_pos = None
+		if self.destination_set:
 
-		if True:
-			#print(self.safe_pos)
+			if not self.destination_cmd == "Drop":
+				self.marker_scan.data = False
+				self.drop_pos = None
 
-			# updating coordinates according to the new marker position
-			if self.marker_scan.data and self.destination_cmd == "Drop":
+			if True:
+				#print(self.safe_pos)
 
-				if not self.search_circle:
-					lat = self.destination[0]
-					lon = self.destination[1]
-					alt = self.destination[2] + 10
-					self.search_circle = [[lat,lon, alt], [lat + 0.00006, lon + 0.00006, alt], [lat - 0.00006, lon + 0.00006, alt], [lat - 0.00006, lon - 0.00006, alt], [lat + 0.00006, lon - 0.00006, alt]]
-					#self.search_circle = [[lat - 0.00006, lon - 0.00006, alt], [lat + 0.00006, lon - 0.00006, alt], [lat + 0.00006, lon + 0.00006, alt]]
-					self.search_index = 0
+				# updating coordinates according to the new marker position
+				if self.marker_scan.data and self.destination_cmd == "Drop":
 
-					#self.destination[2] += 0.08
-					self.time = None
-				
-				elif (self.err_x_m > -0.2 and self.err_x_m < 0.2) and (self.err_y_m > -0.2 and self.err_y_m < 0.2):
-					if not self.time:
-						self.time = rospy.Time.now().to_sec()
-					elif rospy.Time.now().to_sec() - self.time > 0.4:
-						if self.Z_m.data > 0.8:
-							self.search_circle[self.search_index][2] -= 0
-				
-						self.time = rospy.Time.now().to_sec()
-				
+					if not self.search_circle:
+						lat = self.destination[0]
+						lon = self.destination[1]
+						alt = self.destination[2] + 10
+						self.search_circle = [[lat,lon, alt], [lat + 0.00006, lon + 0.00006, alt], [lat - 0.00006, lon + 0.00006, alt], [lat - 0.00006, lon - 0.00006, alt], [lat + 0.00006, lon - 0.00006, alt]]
+						#self.search_circle = [[lat - 0.00006, lon - 0.00006, alt], [lat + 0.00006, lon - 0.00006, alt], [lat + 0.00006, lon + 0.00006, alt]]
+						self.search_index = 0
 
-			else:
-				self.search_circle = None
-				self.time = None
-
-			'''if not self.marker_scan.data:
-				if self.distances[-1] > 0.64:
-					self.destination[-1] -= 0.1'''
-
-			
-
-
-
-
-			# Computing error (for proportional)
-
-
-			for i in range(3):
-				self.error[i] = (
-						self.destination[i] - self.drone_position[i]
-					)
-				self.error_check[i] = (
-						self.destination[i] - self.drone_position[i]
-					)
-				
-				if self.marker_scan.data and self.search_circle:
-					#print(self.search_index)
-					self.error[i] = (
-						self.search_circle[self.search_index][i] - self.drone_position[i]
-					)
-
-				if self.drop_pos and self.destination_cmd == "Drop":
-					self.error[i] = self.drop_pos[i] - self.drone_position[i]
-
-
-				if self.safe_pos2:
-					self.error[i] = self.safe_pos2[i] - self.drone_position[i]
-
-			
-			if self.drop_pos and ((self.error[0] > -0.000004517 and self.error[0] < 0.000004517) and (self.error[1] > -0.0000047487 and self.error[1] < 0.0000047487) and(self.error[2] > -0.2 and self.error[2] < 0.2)):
+						#self.destination[2] += 0.08
+						self.time = None
 					
-					self.drop_package()
-					self.mission_status.data = True
-					#print("dropped")
-
-					self.mission_status_pub.publish(self.mission_status)
-					self.update_destination = True
-
-					self.drop_pos = None
-					print("drop_pos removed")
-
-
-			if self.safe_pos2 and ((self.error[0] > -0.000004517 and self.error[0] < 0.000004517) and (self.error[1] > -0.0000047487 and self.error[1] < 0.0000047487) and(self.error[2] > -0.2 and self.error[2] < 0.2)):
-				self.safe_pos2 = None
-				print("safe_pos2 removed")
-
-
+					elif (self.err_x_m > -0.2 and self.err_x_m < 0.2) and (self.err_y_m > -0.2 and self.err_y_m < 0.2):
+						if not self.time:
+							self.time = rospy.Time.now().to_sec()
+						elif rospy.Time.now().to_sec() - self.time > 0.4:
+							if self.Z_m.data > 0.8:
+								self.search_circle[self.search_index][2] -= 0
+					
+							self.time = rospy.Time.now().to_sec()
 					
 
-			if ((self.error[0] > -0.000004517 and self.error[0] < 0.000004517) and (self.error[1] > -0.0000047487 and self.error[1] < 0.0000047487) and(self.error[2] > -0.2 and self.error[2] < 0.2)) and not self.marker_visibility:
-				if not self.timeout:
-					self.timeout = rospy.Time.now().to_sec()
-				if self.search_index < 4 and rospy.Time.now().to_sec() - self.timeout > 1:
-					self.search_index += 1
-					self.timeout = None
-
-			if self.obstacle_encountered():
-				self.bug0_crawl()
-
-
-			#   self.p_error_limit = 0.00002
-			#else:
-			#   self.p_error_limit = 0.00002
-
-			self.p_error_limit = [2.5/110692.0702932625, 2.5/105292.0089353767, 1.4]
-
-			if (self.error[2] > -0.2 and self.error[2] < 0.2) and not self.drop_pos:
-				self.p_error_limit = [10/110692.0702932625, 10/105292.0089353767, 1.4]
-
-			if (not ((self.error[0] > -0.000004517 and self.error[0] < 0.000004517) or (self.error[1] > -0.0000047487 and self.error[1] < 0.0000047487))) or self.obstacle_encountered() or (self.distances[4] < 6 if not self.package_picked else False):
-				
-				self.p_error_limit = [2.5/110692.0702932625, 2.5/105292.0089353767, 1.4]
-
-			elif self.marker_scan.data and self.destination_cmd == "Drop" and self.marker_visibility:
-				self.p_error_limit = [2.5/110692.0702932625, 2.5/105292.0089353767, 1.4]
-
-			if self.drop_pos:
-				self.p_error_limit[-1] = 0.5
-
-			for i in range(3):
-
-				if i != 2:
-					if self.error[i] > self.p_error_limit[i]:
-						self.p_error[i] = self.p_error_limit[i]
-					elif self.error[i] < -self.p_error_limit[i]:
-						self.p_error[i] = -self.p_error_limit[i]
-					else:
-						self.p_error[i] = self.error[i]
-						#print(type(self.error[i]))
 				else:
+					self.search_circle = None
+					self.time = None
 
-					# to hover above a distance above the ground 
-					if self.distances[4] < 4 and not self.package_picked and not ((self.err_x_m > -0.2 and self.err_x_m < 0.2) and (self.err_y_m > -0.2 and self.err_y_m < 0.2) if self.destination_cmd == "Drop" else False):
-						diff = 4 - self.distances[4]
-						if self.error[i] <= diff and not ((self.error[0] > -0.00001 and self.error[0] < 0.00001) and (self.error[1] > -0.00001 and self.error[1] < 0.00001)):
-							self.error[i] = diff
+				'''if not self.marker_scan.data:
+					if self.distances[-1] > 0.64:
+						self.destination[-1] -= 0.1'''
+
+				
+
+
+
+
+				# Computing error (for proportional)
+
+
+				for i in range(3):
+					self.error[i] = (
+							self.destination[i] - self.drone_position[i]
+						)
+					self.error_check[i] = (
+							self.destination[i] - self.drone_position[i]
+						)
+					
+					if self.marker_scan.data and self.search_circle:
+						#print(self.search_index)
+						self.error[i] = (
+							self.search_circle[self.search_index][i] - self.drone_position[i]
+						)
+
+					if self.drop_pos and self.destination_cmd == "Drop":
+						self.error[i] = self.drop_pos[i] - self.drone_position[i]
+
+
+					if self.safe_pos2:
+						self.error[i] = self.safe_pos2[i] - self.drone_position[i]
+
+				
+				if self.drop_pos and ((self.error[0] > -0.000004517 and self.error[0] < 0.000004517) and (self.error[1] > -0.0000047487 and self.error[1] < 0.0000047487) and(self.error[2] > -0.2 and self.error[2] < 0.2)):
 						
-						#print(type(self.error[i])),
+						self.drop_package()
+						self.mission_status.data = True
+						#print("dropped")
 
-					if self.error[i] > self.p_error_limit[i]:
-						self.p_error[i] = self.p_error_limit[i]
-					elif self.error[i] < -self.p_error_limit[i]:
-						self.p_error[i] = -self.p_error_limit[i]
+						self.mission_status_pub.publish(self.mission_status)
+						self.update_destination = True
+
+						self.drop_pos = None
+						print("drop_pos removed")
+
+
+				if self.safe_pos2 and ((self.error[0] > -0.000004517 and self.error[0] < 0.000004517) and (self.error[1] > -0.0000047487 and self.error[1] < 0.0000047487) and(self.error[2] > -0.2 and self.error[2] < 0.2)):
+					self.safe_pos2 = None
+					print("safe_pos2 removed")
+
+
+						
+
+				if ((self.error[0] > -0.000004517 and self.error[0] < 0.000004517) and (self.error[1] > -0.0000047487 and self.error[1] < 0.0000047487) and(self.error[2] > -0.2 and self.error[2] < 0.2)) and not self.marker_visibility:
+					if not self.timeout:
+						self.timeout = rospy.Time.now().to_sec()
+					if self.search_index < 4 and rospy.Time.now().to_sec() - self.timeout > 1:
+						self.search_index += 1
+						self.timeout = None
+
+				if self.obstacle_encountered():
+					self.bug0_crawl()
+
+
+				#   self.p_error_limit = 0.00002
+				#else:
+				#   self.p_error_limit = 0.00002
+
+				self.p_error_limit = [2.5/110692.0702932625, 2.5/105292.0089353767, 1.4]
+
+				if (self.error[2] > -0.2 and self.error[2] < 0.2) and not self.drop_pos:
+					self.p_error_limit = [10/110692.0702932625, 10/105292.0089353767, 1.4]
+
+				if (not ((self.error[0] > -0.000004517 and self.error[0] < 0.000004517) or (self.error[1] > -0.0000047487 and self.error[1] < 0.0000047487))) or self.obstacle_encountered() or (self.distances[4] < 6 if not self.package_picked else False):
+					
+					self.p_error_limit = [2.5/110692.0702932625, 2.5/105292.0089353767, 1.4]
+
+				elif self.marker_scan.data and self.destination_cmd == "Drop" and self.marker_visibility:
+					self.p_error_limit = [2.5/110692.0702932625, 2.5/105292.0089353767, 1.4]
+
+				if self.drop_pos:
+					self.p_error_limit[-1] = 0.5
+
+				for i in range(3):
+
+					if i != 2:
+						if self.error[i] > self.p_error_limit[i]:
+							self.p_error[i] = self.p_error_limit[i]
+						elif self.error[i] < -self.p_error_limit[i]:
+							self.p_error[i] = -self.p_error_limit[i]
+						else:
+							self.p_error[i] = self.error[i]
+							#print(type(self.error[i]))
 					else:
-						self.p_error[i] = self.error[i]
+
+						# to hover above a distance above the ground 
+						if self.distances[4] < 4 and not self.package_picked and not ((self.err_x_m > -0.2 and self.err_x_m < 0.2) and (self.err_y_m > -0.2 and self.err_y_m < 0.2) if self.destination_cmd == "Drop" else False):
+							diff = 4 - self.distances[4]
+							if self.error[i] <= diff and not ((self.error[0] > -0.00001 and self.error[0] < 0.00001) and (self.error[1] > -0.00001 and self.error[1] < 0.00001)):
+								self.error[i] = diff
+							
+							#print(type(self.error[i])),
+
+						if self.error[i] > self.p_error_limit[i]:
+							self.p_error[i] = self.p_error_limit[i]
+						elif self.error[i] < -self.p_error_limit[i]:
+							self.p_error[i] = -self.p_error_limit[i]
+						else:
+							self.p_error[i] = self.error[i]
 
 
-				# change in error (for derivative)
-				self.dif_error[i] = self.error[i] - self.prev_value[i]
+					# change in error (for derivative)
+					self.dif_error[i] = self.error[i] - self.prev_value[i]
 
-				# sum of errors (for integral)
-				self.sum_error[i] = (self.sum_error[i] + self.error[i]) * self.Ki[i]
+					# sum of errors (for integral)
+					self.sum_error[i] = (self.sum_error[i] + self.error[i]) * self.Ki[i]
 
-				# calculating the pid output required for throttle
-				self.output[i] = (
-					(self.Kp[i] * self.p_error[i])
-					+ self.sum_error[i]
-					+ (self.Kd[i] * self.dif_error[i])
-				)
+					# calculating the pid output required for throttle
+					self.output[i] = (
+						(self.Kp[i] * self.p_error[i])
+						+ self.sum_error[i]
+						+ (self.Kd[i] * self.dif_error[i])
+					)
 
-			#print(self.p_error)
+				#print(self.p_error)
 
-			# Setting control values
-			self.control_cmd.rcRoll = self.output[0] + 1500
-			self.control_cmd.rcPitch = self.output[1] + 1500
-			self.control_cmd.rcThrottle = self.output[2] + 1500
+				# Setting control values
+				self.control_cmd.rcRoll = self.output[0] + 1500
+				self.control_cmd.rcPitch = self.output[1] + 1500
+				self.control_cmd.rcThrottle = self.output[2] + 1500
 
-			# print(self.output)
+				# print(self.output)
 
-			# Limiting the output value and the final command value
-			if self.control_cmd.rcRoll > self.max_value:
-				self.control_cmd.rcRoll = self.max_value
+				# Limiting the output value and the final command value
+				if self.control_cmd.rcRoll > self.max_value:
+					self.control_cmd.rcRoll = self.max_value
 
-			elif self.control_cmd.rcRoll < self.min_value:
-				self.control_cmd.rcRoll = self.min_value
+				elif self.control_cmd.rcRoll < self.min_value:
+					self.control_cmd.rcRoll = self.min_value
 
-			if self.control_cmd.rcPitch > self.max_value:
-				self.control_cmd.rcPitch = self.max_value
+				if self.control_cmd.rcPitch > self.max_value:
+					self.control_cmd.rcPitch = self.max_value
 
-			elif self.control_cmd.rcPitch < self.min_value:
-				self.control_cmd.rcPitch = self.min_value
+				elif self.control_cmd.rcPitch < self.min_value:
+					self.control_cmd.rcPitch = self.min_value
 
-			if self.control_cmd.rcYaw > self.max_value:
-				self.control_cmd.rcYaw = self.max_value
+				if self.control_cmd.rcYaw > self.max_value:
+					self.control_cmd.rcYaw = self.max_value
 
-			elif self.control_cmd.rcYaw < self.min_value:
-				self.control_cmd.rcYaw = self.min_value
+				elif self.control_cmd.rcYaw < self.min_value:
+					self.control_cmd.rcYaw = self.min_value
 
-			if self.control_cmd.rcThrottle > self.max_value:
-				self.control_cmd.rcThrottle = self.max_value
+				if self.control_cmd.rcThrottle > self.max_value:
+					self.control_cmd.rcThrottle = self.max_value
 
-			elif self.control_cmd.rcThrottle < self.min_value:
-				self.control_cmd.rcThrottle = self.min_value
+				elif self.control_cmd.rcThrottle < self.min_value:
+					self.control_cmd.rcThrottle = self.min_value
 
-			# print(self.control_cmd.rcThrottle)
+				# print(self.control_cmd.rcThrottle)
 
-			# Update previous error value
-			for i in range(3):
-				self.prev_value[i] = self.error[i]
+				# Update previous error value
+				for i in range(3):
+					self.prev_value[i] = self.error[i]
 
-			# print(self.control_cmd.rcRoll)
-			# print(self.control_cmd.rcPitch)
+				# print(self.control_cmd.rcRoll)
+				# print(self.control_cmd.rcPitch)
 
-			self.cmd_pub.publish(self.control_cmd)
-			self.altitude_pub.publish(self.error[0])
+				self.cmd_pub.publish(self.control_cmd)
+				self.altitude_pub.publish(self.error[0])
 
-			self.zero_pub.publish(0.0)
+				self.zero_pub.publish(0.0)
 
-			self.qr_command_pub.publish(self.qr_command)
+				self.qr_command_pub.publish(self.qr_command)
 
-			self.set_waypiont()
+				self.set_waypiont()
 
-			self.Z_m_error_pub.publish(self.Z_m)
-			self.marker_scan_command_pub.publish(self.marker_scan)
-			#print(self.Z_m)
+				self.Z_m_error_pub.publish(self.Z_m)
+				self.marker_scan_command_pub.publish(self.marker_scan)
+				#print(self.Z_m)
 
 
 
