@@ -16,12 +16,15 @@ class mission:
 class mission_planner:
 	def __init__(self):
 		self.mission_list = []
+
 		# to calculate box location
 		self.A1_pos = [18.9998102845, 72.000142461, 16.757981] # lat, lon, alt
 		self.X1_pos = [18.9999367615, 72.000142461, 16.757981] # lat, lon, alt
 		self.cell_size = [self.m_to_lat(1.5), self.m_to_lon(1.5)] # lat, lon
 		self.delivery_grid = "ABC"
 		self.return_grid = "XYZ"
+
+		self.destination_list = []
 
 	# to convert distance in meters to latitute
 	def m_to_lat(self, m):
@@ -40,6 +43,9 @@ class mission_planner:
 	# to convert distance in longitute to meters
 	def lon_to_m(self, m):
 		return m * 105292.0089353767
+
+	def get_destination_list():
+		if not self.destination_list
 
 	def sort(self):
 		self.mission_list = self.sorted(self.mission_list)
@@ -102,6 +108,8 @@ class mission_planner:
 
 		return [lat, lon, alt]
 
+
+
 	def add(self, objective, start, end):
 		# item is [objective, start, end]
 		m = mission()
@@ -121,7 +129,7 @@ class mission_planner:
 
 mp = mission_planner()
 
-print("Loading data...")
+print("Loading data...\n")
 f = open(FILE_NAME, "r")
 
 for line in f:
@@ -143,15 +151,20 @@ for line in f:
 for m in mp.mission_list:
 	print(m)
 
-print("Data loaded.")
+print("\nNo. of missions = " + str(len(mp.mission_list)))
 
-print("Sorting according to linear distance...")
+
+print("\nData loaded.\n")
+
+print("Sorting according to linear distance...\n")
 
 mp.sort()
-print("sorted")
+print("Sorted.\n")
 
 for m in mp.mission_list:
 	print(m)
 
 
-print("No. of missions = " + str(len(mp.mission_list)))
+print("\nNo. of missions = " + str(len(mp.mission_list)))
+
+
