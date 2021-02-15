@@ -121,7 +121,7 @@ class destination:
 
 			f= open(self.csv_file, "r")
 									
-			for line in f:
+			#for line in f:
 									
 				#items = line.split(",")
 									
@@ -225,7 +225,6 @@ class destination:
 			self.destination.altitude = self.destination_list[self.destination_index][2]
 
 			self.destination_cmd.data = self.destination_list[self.destination_index][3]
-
 
 			# publishing mission parameters
 			self.destination_pub.publish(self.destination)

@@ -44,8 +44,26 @@ class mission_planner:
 	def lon_to_m(self, m):
 		return m * 105292.0089353767
 
-	def get_destination_list():
-		if not self.destination_list
+	def get_destination_list(self):
+		if not self.destination_list:
+			for item in self.mission_list:
+
+				start = deepcopy(item.start)
+				start1 = deepcopy(start)
+				start1[-1] +=6
+				start1.append("Reach")
+				start.append("Pickup")
+
+				end = deepcopy(item.end)
+				end1 = deepcopy(end)
+				end1[-1] +=6
+				end1.append("Reach")
+				end.append("Drop" if not item.objective == "RETURN" else "Return")
+
+				for destination in [start1, start, end1, end]:
+					self.destination_list.append(destination)
+
+		return self.destination_list
 
 	def sort(self):
 		self.mission_list = self.sorted(self.mission_list)
@@ -94,6 +112,13 @@ class mission_planner:
 								print("\n--\n")'''
 
 		return deepcopy(new_list)
+
+	def use_timestone(self):
+		return True
+
+
+	def dr_strange(self):
+		return self.use_timestone()
 
 
 	def cell_to_coordinates(self, cell_ID, delivery):
@@ -167,4 +192,15 @@ for m in mp.mission_list:
 
 print("\nNo. of missions = " + str(len(mp.mission_list)))
 
+print("Calculating destinations map...")
 
+print("Done.\n")
+
+destinations = mp.get_destination_list()
+
+for destination in destinations:
+	print(destination)
+
+print("\n")
+
+print(mp.dr_strange())

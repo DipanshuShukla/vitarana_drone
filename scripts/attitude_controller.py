@@ -64,9 +64,14 @@ class Edrone:
 
         # initial setting of Kp, Kd and Ki for [roll, pitch, yaw]. eg: self.Kp[2] corresponds to Kp value in yaw axis
         # after tuning and computing corresponding PID parameters, change the parameters
-        self.Kp = [240, 350, 13600]
-        self.Ki = [0.002 * 368, 0.002 * 380, 0.032]
-        self.Kd = [2228, 2500, 4000]
+        
+        #self.Kp = [240, 350, 13600]
+        #self.Ki = [0.002 * 368, 0.002 * 380, 0.032]
+        #self.Kd = [2228, 2500, 4000]
+
+        self.Kp = [600.0 * 0.02, 300.0 * 0.02, 0.0]
+        self.Ki = [200.0 * 0.002, 300.0 * 0.002, 0.0]
+        self.Kd = [1100.0 * 0.05, 2000.0 * 0.02, 0.0] # [roll, pitch, yaw]
 
         # -----------------------Add other required variables for pid here ----------------------------------------------
         #
@@ -105,11 +110,13 @@ class Edrone:
         rospy.Subscriber("/edrone/imu/data", Imu, self.imu_callback)
         #rospy.Subscriber("/pid_tuning_roll", PidTune, self.roll_set_pid)
         # -------------------------Add other ROS Subscribers here----------------------------------------------------
-        # rospy.Subscriber("/pid_tuning_pitch", PidTune, self.pitch_set_pid)
-        # rospy.Subscriber("/pid_tuning_yaw", PidTune, self.yaw_set_pid)
+        #rospy.Subscriber("/pid_tuning_pitch", PidTune, self.pitch_set_pid)
+        rospy.Subscriber("/pid_tuning_yaw", PidTune, self.yaw_set_pid)
         # ------------------------------------------------------------------------------------------------------------
 
         time.sleep(2.5)
+
+        print("Initialised... OK")
 
 
     # Imu callback function
@@ -136,6 +143,9 @@ class Edrone:
         self.setpoint_cmd[1] = msg.rcPitch
         self.setpoint_cmd[2] = msg.rcYaw
 
+        for i in range(3):
+            self.setpoint_cmd[i] = 1500
+
         # Throttle
         self.throttle = msg.rcThrottle
 
@@ -148,22 +158,22 @@ class Edrone:
     # This function gets executed each time when /tune_pid publishes /pid_tuning_roll
     def roll_set_pid(self, roll):
         # This is just for an example. You can change the ratio/fraction value accordingly
-        self.Kp[0] = roll.Kp * 3.2
+        self.Kp[0] = roll.Kp * 0.02
         self.Ki[0] = roll.Ki * 0.002
-        self.Kd[0] = roll.Kd * 0.8
+        self.Kd[0] = roll.Kd * 0.05
 
     # ----------------------------Define callback function like roll_set_pid to tune pitch, yaw--------------
     # Callback function for /pid_tuning_pitch
     def pitch_set_pid(self, pitch):
-        self.Kp[1] = pitch.Kp * 1.6
+        self.Kp[1] = pitch.Kp * 0.02
         self.Ki[1] = pitch.Ki * 0.002
-        self.Kd[1] = pitch.Kd * 0.8
+        self.Kd[1] = pitch.Kd * 0.02
 
     # Callback function for /pid_tuning_yaw
     def yaw_set_pid(self, yaw):
-        self.Kp[2] = yaw.Kp * 40
-        self.Ki[2] = yaw.Ki * 0.002
-        self.Kd[2] = yaw.Kd * 0.8
+        self.Kp[2] = yaw.Kp
+        self.Ki[2] = yaw.Ki * 0.02
+        self.Kd[2] = yaw.Kd 
 
     # ----------------------------------------------------------------------------------------------------------------------
 
@@ -185,6 +195,7 @@ class Edrone:
             #   8. Update previous errors.eg: self.prev_error[1] = error[1] where index 1 corresponds to that of pitch (eg)
             #   9. Add error_sum to use for integral component
 
+            prev_yaw = self.drone_orientation_euler[-1]
             # Converting quaternion to euler angles
             (
                 self.drone_orientation_euler[1],
@@ -194,7 +205,9 @@ class Edrone:
                 self.drone_orientation_quaternion
             )
 
-            # print(self.drone_orientation_euler)
+            #print(self.drone_orientation_euler[1]*180/math.pi)
+
+            
 
             # Convertng the range from 1000 to 2000 in the range of -10 degree to 10 degree for roll axis
             self.setpoint_euler[0] = self.setpoint_cmd[0] * 0.02 - 30
@@ -202,6 +215,13 @@ class Edrone:
             # Complete the equations for pitch and yaw axis
             self.setpoint_euler[1] = self.setpoint_cmd[1] * 0.02 - 30
             self.setpoint_euler[2] = self.setpoint_cmd[2] * 0.02 - 30
+
+
+            for i in range(3):
+                self.drone_orientation_euler[i] = self.drone_orientation_euler[i]*180/math.pi
+
+            print(self.drone_orientation_euler[0])
+
 
             # Also convert the range of 1000 to 2000 to 0 to 1024 for throttle here itslef
             self.throttle = self.throttle * 1.024 - 1024
@@ -239,9 +259,9 @@ class Edrone:
 
                 # print(self.output[i])
                 """if self.output[i] > 80:
-                                                                    self.output[i] = 80
-                                                                elif self.output[i] < -80:
-                                                                    self.output[i] = -80"""
+                        self.output[i] = 80
+                    elif self.output[i] < -80:
+                        self.output[i] = -80"""
 
 
             # Step 6 - Computing the pwm for each propeller
@@ -308,6 +328,7 @@ class Edrone:
         self.roll_pub.publish(self.error[0])
         self.pitch_pub.publish(self.error[1])
         self.yaw_pub.publish(self.error[2])
+        #self.yaw_pub.publish(self.drone_orientation_euler[2] *180/3)
 
 
 if __name__ == "__main__":

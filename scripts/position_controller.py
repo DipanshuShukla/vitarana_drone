@@ -106,9 +106,13 @@ class Control:
 
 		# variables for pid
 		# initial setting of Kp, Kd and Ki for throttle
-		self.Kp = [720000, 720000, 396.0]
-		self.Ki = [0.66, 0.66, 0.88]
-		self.Kd = [20000000, 20000000, 4000.0]
+		#self.Kp = [720000, 720000, 396.0]
+		#self.Ki = [0.66, 0.66, 0.88]
+		#self.Kd = [20000000, 20000000, 4000.0]
+
+		self.Kp = [840.0 * 5000, 0.0, 574.0]
+		self.Ki = [250.0 * 0.004, 0.0, 90 * 0.01]
+		self.Kd = [1500.0 * 50000, 0.0, 5000.0]
 
 		self.prev_value = [0.0, 0.0, 0.0]  # [lat, long, alt]
 		self.max_value = 2000
@@ -161,7 +165,9 @@ class Control:
 		#rospy.Subscriber("/destination_coordinates", Vector3, self.destination_coordinates_callback)
 		rospy.Subscriber("/edrone/gripper_check", String, self.gripper_check_callback)
 		rospy.Subscriber("/qr_status", Bool, self.qr_status_callback)
-		#rospy.Subscriber("/pid_tuning_altitude", PidTune, self.longitude_set_pid)
+
+		rospy.Subscriber("/pid_tuning_altitude", PidTune, self.latitude_set_pid)
+
 		rospy.Subscriber("/edrone/range_finder_top", LaserScan, self.range_finder_top_callback, queue_size=1)
 		rospy.Subscriber("/edrone/range_finder_bottom", LaserScan, self.range_finder_bottom_callback)
 		rospy.Subscriber("/edrone/marker_visibility", Bool, self.marker_visibility_callback)
@@ -277,7 +283,8 @@ class Control:
 	
 	# range finder bottom callback function
 	def range_finder_bottom_callback(self, msg):
-			self.distances[4] = msg.ranges[0] - 0.2
+		if (self.distances[4] - msg.ranges[0]) < 0.3 or (self.distances[4] - msg.ranges[0]) > 0.3:
+			self.distances[4] = msg.ranges[0]
 			self.distances[4] = float(self.distances[4])
 			#print(self.distances[4])
 
@@ -285,19 +292,19 @@ class Control:
 		self.package_pickable = msg.data
 	
 	def latitude_set_pid(self, latitude):
-		self.Kp[0] = latitude.Kp * 500
-		self.Ki[0] = latitude.Ki * 0.001
-		self.Kd[0] = latitude.Kd * 8000
+		self.Kp[0] = latitude.Kp * 5000
+		self.Ki[0] = latitude.Ki * 0.004
+		self.Kd[0] = latitude.Kd * 50000
 
 	def longitude_set_pid(self, longitude):
-		#self.Kp[1] = longitude.Kp * 500
+		self.Kp[1] = longitude.Kp * 500
 		self.Ki[1] = longitude.Ki * 0.001
-		#self.Kd[1] = longitude.Kd * 8000
+		self.Kd[1] = longitude.Kd * 8000
 
 	def altitude_set_pid(self, altitude):
-		self.Kp[2] = altitude.Kp * 0.4
-		self.Ki[2] = altitude.Ki * 0.002
-		self.Kd[2] = altitude.Kd * 0.8
+		self.Kp[2] = altitude.Kp
+		self.Ki[2] = altitude.Ki * 0.01
+		self.Kd[2] = altitude.Kd
 
 	# function to pick package up
 	def pick_package(self):
@@ -348,6 +355,10 @@ class Control:
 
 
 			if self.destination_cmd == "Reach": 
+				self.mission_status.data = True
+
+			if self.destination_cmd == "Return": 
+				self.drop_package()
 				self.mission_status.data = True
 
 		elif self.destination_cmd == "Drop" and self.marker_scan.data:
@@ -642,20 +653,22 @@ class Control:
 				#else:
 				#   self.p_error_limit = 0.00002
 
-				self.p_error_limit = [2.5/110692.0702932625, 2.5/105292.0089353767, 1.4]
+				self.p_error_limit = [2/110692.0702932625, 10/105292.0089353767, 1.4]
 
 				if (self.error[2] > -0.2 and self.error[2] < 0.2) and not self.drop_pos:
-					self.p_error_limit = [10/110692.0702932625, 10/105292.0089353767, 1.4]
+					self.p_error_limit = [4/110692.0702932625, 4/105292.0089353767, 1.4]
 
 				if (not ((self.error[0] > -0.000004517 and self.error[0] < 0.000004517) or (self.error[1] > -0.0000047487 and self.error[1] < 0.0000047487))) or self.obstacle_encountered() or (self.distances[4] < 6 if not self.package_picked else False):
 					
-					self.p_error_limit = [2.5/110692.0702932625, 2.5/105292.0089353767, 1.4]
+					self.p_error_limit = [2/110692.0702932625, 10/105292.0089353767, 1.4]
 
 				elif self.marker_scan.data and self.destination_cmd == "Drop" and self.marker_visibility:
-					self.p_error_limit = [2.5/110692.0702932625, 2.5/105292.0089353767, 1.4]
+					self.p_error_limit = [2/110692.0702932625, 10/105292.0089353767, 1.4]
 
 				if self.drop_pos:
 					self.p_error_limit[-1] = 0.5
+
+				self.p_error_limit[-1] = 100
 
 				for i in range(3):
 
@@ -673,7 +686,8 @@ class Control:
 						if self.distances[4] < 4 and not self.package_picked and not ((self.err_x_m > -0.2 and self.err_x_m < 0.2) and (self.err_y_m > -0.2 and self.err_y_m < 0.2) if self.destination_cmd == "Drop" else False):
 							diff = 4 - self.distances[4]
 							if self.error[i] <= diff and not ((self.error[0] > -0.00001 and self.error[0] < 0.00001) and (self.error[1] > -0.00001 and self.error[1] < 0.00001)):
-								self.error[i] = diff
+								#self.error[i] = diff
+								pass
 							
 							#print(type(self.error[i])),
 
@@ -742,7 +756,7 @@ class Control:
 				# print(self.control_cmd.rcPitch)
 
 				self.cmd_pub.publish(self.control_cmd)
-				self.altitude_pub.publish(self.error[0])
+				self.altitude_pub.publish(self.error_check[0])
 
 				self.zero_pub.publish(0.0)
 
