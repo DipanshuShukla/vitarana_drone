@@ -110,9 +110,9 @@ class Control:
 		#self.Ki = [0.66, 0.66, 0.88]
 		#self.Kd = [20000000, 20000000, 4000.0]
 
-		self.Kp = [840.0 * 5000, 0.0, 574.0]
-		self.Ki = [250.0 * 0.004, 0.0, 90 * 0.01]
-		self.Kd = [1500.0 * 50000, 0.0, 5000.0]
+		self.Kp = [0.0, 0.0, 574.0]
+		self.Ki = [0.0, 0.0, 90 * 0.01]
+		self.Kd = [0.0, 0.0, 5000.0]
 
 		self.prev_value = [0.0, 0.0, 0.0]  # [lat, long, alt]
 		self.max_value = 2000
@@ -127,7 +127,7 @@ class Control:
 
 		self.output = [0.0, 0.0, 0.0]  # [lat, long, alt]
 
-		self.p_error_limit = [10/110692.0702932625, 2/105292.0089353767, 1.4]
+		self.p_error_limit = [10/110692.0702932625, 10/105292.0089353767, 1.4]
 
 
 		# for marker detection
@@ -292,9 +292,9 @@ class Control:
 		self.package_pickable = msg.data
 	
 	def latitude_set_pid(self, latitude):
-		self.Kp[0] = latitude.Kp * 5000
+		self.Kp[0] = latitude.Kp * 50000
 		self.Ki[0] = latitude.Ki * 0.004
-		self.Kd[0] = latitude.Kd * 50000
+		self.Kd[0] = latitude.Kd * 500000
 
 	def longitude_set_pid(self, longitude):
 		self.Kp[1] = longitude.Kp * 500
@@ -653,17 +653,17 @@ class Control:
 				#else:
 				#   self.p_error_limit = 0.00002
 
-				self.p_error_limit = [2/110692.0702932625, 10/105292.0089353767, 1.4]
+				self.p_error_limit = [10/110692.0702932625, 10/105292.0089353767, 1.4]
 
 				if (self.error[2] > -0.2 and self.error[2] < 0.2) and not self.drop_pos:
-					self.p_error_limit = [4/110692.0702932625, 4/105292.0089353767, 1.4]
+					self.p_error_limit = [10/110692.0702932625, 10/105292.0089353767, 1.4]
 
 				if (not ((self.error[0] > -0.000004517 and self.error[0] < 0.000004517) or (self.error[1] > -0.0000047487 and self.error[1] < 0.0000047487))) or self.obstacle_encountered() or (self.distances[4] < 6 if not self.package_picked else False):
 					
-					self.p_error_limit = [2/110692.0702932625, 10/105292.0089353767, 1.4]
+					self.p_error_limit = [10/110692.0702932625, 10/105292.0089353767, 1.4]
 
 				elif self.marker_scan.data and self.destination_cmd == "Drop" and self.marker_visibility:
-					self.p_error_limit = [2/110692.0702932625, 10/105292.0089353767, 1.4]
+					self.p_error_limit = [10/110692.0702932625, 10/105292.0089353767, 1.4]
 
 				if self.drop_pos:
 					self.p_error_limit[-1] = 0.5
@@ -671,6 +671,8 @@ class Control:
 				self.p_error_limit[-1] = 100
 
 				for i in range(3):
+
+
 
 					if i != 2:
 						if self.error[i] > self.p_error_limit[i]:
@@ -697,6 +699,9 @@ class Control:
 							self.p_error[i] = -self.p_error_limit[i]
 						else:
 							self.p_error[i] = self.error[i]
+
+					self.p_error[i] = self.error[i]
+
 
 
 					# change in error (for derivative)

@@ -69,9 +69,9 @@ class Edrone:
         #self.Ki = [0.002 * 368, 0.002 * 380, 0.032]
         #self.Kd = [2228, 2500, 4000]
 
-        self.Kp = [600.0 * 0.02, 300.0 * 0.02, 0.0]
-        self.Ki = [200.0 * 0.002, 300.0 * 0.002, 0.0]
-        self.Kd = [1100.0 * 0.05, 2000.0 * 0.02, 0.0] # [roll, pitch, yaw]
+        self.Kp = [600.0 * 0.02, 300.0 * 0.02, 300.0]
+        self.Ki = [200.0 * 0.002, 300.0 * 0.002, 25.0 * 0.02]
+        self.Kd = [1100.0 * 0.05, 2000.0 * 0.02, 100.0] # [roll, pitch, yaw]
 
         # -----------------------Add other required variables for pid here ----------------------------------------------
         #
@@ -143,8 +143,8 @@ class Edrone:
         self.setpoint_cmd[1] = msg.rcPitch
         self.setpoint_cmd[2] = msg.rcYaw
 
-        for i in range(3):
-            self.setpoint_cmd[i] = 1500
+        #for i in range(3):
+        #    self.setpoint_cmd[i] = 1500
 
         # Throttle
         self.throttle = msg.rcThrottle
@@ -210,17 +210,15 @@ class Edrone:
             
 
             # Convertng the range from 1000 to 2000 in the range of -10 degree to 10 degree for roll axis
-            self.setpoint_euler[0] = self.setpoint_cmd[0] * 0.02 - 30
-
-            # Complete the equations for pitch and yaw axis
-            self.setpoint_euler[1] = self.setpoint_cmd[1] * 0.02 - 30
-            self.setpoint_euler[2] = self.setpoint_cmd[2] * 0.02 - 30
+            for i in range(3):
+                self.setpoint_euler[i] = self.setpoint_cmd[i] * 0.02 - 30
+                self.setpoint_euler[i] *= 5
 
 
             for i in range(3):
                 self.drone_orientation_euler[i] = self.drone_orientation_euler[i]*180/math.pi
 
-            print(self.drone_orientation_euler[0])
+            print(self.drone_orientation_euler[-1])
 
 
             # Also convert the range of 1000 to 2000 to 0 to 1024 for throttle here itslef
