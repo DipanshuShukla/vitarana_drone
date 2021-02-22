@@ -18,7 +18,7 @@ CODE MODULARITY AND TECHNIQUES MENTIONED LIKE THIS WILL HELP YOU GAINING MORE MA
 
 from vitarana_drone.msg import *
 from pid_tune.msg import PidTune
-from sensor_msgs.msg import Imu
+from sensor_msgs.msg import Imu, LaserScan
 from std_msgs.msg import Float32
 import rospy
 import time
@@ -26,308 +26,333 @@ import tf, math
 
 
 class Edrone:
-    """docstring for Edrone"""
+	"""docstring for Edrone"""
 
-    def __init__(self):
-        rospy.init_node(
-            "attitude_controller"
-        )  # initializing ros node with name drone_control
+	def __init__(self):
+		rospy.init_node(
+			"attitude_controller"
+		)  # initializing ros node with name drone_control
 
-        # This corresponds to your current orientation of eDrone in quaternion format. This value must be updated each time in your imu callback
-        # [x,y,z,w]
-        self.drone_orientation_quaternion = [0.0, 0.0, 0.0, 0.0]
+		# This corresponds to your current orientation of eDrone in quaternion format. This value must be updated each time in your imu callback
+		# [x,y,z,w]
+		self.drone_orientation_quaternion = [0.0, 0.0, 0.0, 0.0]
 
-        # This corresponds to your current orientation of eDrone converted in euler angles form.
-        # [r,p,y]
-        self.drone_orientation_euler = [0.0, 0.0, 0.0]
+		# This corresponds to your current orientation of eDrone converted in euler angles form.
+		# [r,p,y]
+		self.drone_orientation_euler = [0.0, 0.0, 0.0]
 
-        # This is the setpoint that will be received from the drone_command in the range from 1000 to 2000
-        # [r_setpoint, p_setpoint, y_setpoint]
-        self.setpoint_cmd = [0.0, 0.0, 0.0]
+		# This is the setpoint that will be received from the drone_command in the range from 1000 to 2000
+		# [r_setpoint, p_setpoint, y_setpoint]
+		self.setpoint_cmd = [0.0, 0.0, 0.0]
 
-        # aux1 to enable/disable drone
-        self.aux1 = 1000
+		# aux1 to enable/disable drone
+		self.aux1 = 1000
 
-        # The setpoint of orientation in euler angles at which you want to stabilize the drone
-        # [r_setpoint, p_psetpoint, y_setpoint]
-        self.setpoint_euler = [0.0, 0.0, 0.0]
+		# The setpoint of orientation in euler angles at which you want to stabilize the drone
+		# [r_setpoint, p_psetpoint, y_setpoint]
+		self.setpoint_euler = [0.0, 0.0, 0.0]
 
-        # Declaring pwm_cmd of message type prop_speed and initializing values
-        # Hint: To see the message structure of prop_speed type the following command in the terminal
-        # rosmsg show vitarana_drone/prop_speed
+		# Declaring pwm_cmd of message type prop_speed and initializing values
+		# Hint: To see the message structure of prop_speed type the following command in the terminal
+		# rosmsg show vitarana_drone/prop_speed
 
-        self.pwm_cmd = prop_speed()
-        self.pwm_cmd.prop1 = 0.0
-        self.pwm_cmd.prop2 = 0.0
-        self.pwm_cmd.prop3 = 0.0
-        self.pwm_cmd.prop4 = 0.0
+		self.pwm_cmd = prop_speed()
+		self.pwm_cmd.prop1 = 0.0
+		self.pwm_cmd.prop2 = 0.0
+		self.pwm_cmd.prop3 = 0.0
+		self.pwm_cmd.prop4 = 0.0
 
-        # initial setting of Kp, Kd and Ki for [roll, pitch, yaw]. eg: self.Kp[2] corresponds to Kp value in yaw axis
-        # after tuning and computing corresponding PID parameters, change the parameters
-        self.Kp = [240, 350, 13600]
-        self.Ki = [0.002 * 368, 0.002 * 380, 0.032]
-        self.Kd = [2228, 2500, 4000]
-
-        # -----------------------Add other required variables for pid here ----------------------------------------------
-        #
-        self.prev_values = [0, 0, 0]  # [r,p,y]
-        self.max_values = [1024, 1024, 1024, 1024]
-        self.min_values = [0, 0, 0, 0]
+		# initial setting of Kp, Kd and Ki for [roll, pitch, yaw]. eg: self.Kp[2] corresponds to Kp value in yaw axis
+		# after tuning and computing corresponding PID parameters, change the parameters
+		self.Kp = [240, 350, 13600]
+		self.Ki = [0.002 * 368, 0.002 * 380, 0.032]
+		self.Kd = [2228, 2500, 4000]
 
-        self.error = [0.0, 0.0, 0.0]  # [r,p,y]
-        self.dif_error = [0.0, 0.0, 0.0]  # [r,p,y]
-        self.sum_error = [0.0, 0.0, 0.0]  # Iterm [r,p,y]
+		# -----------------------Add other required variables for pid here ----------------------------------------------
+		#
+		self.prev_values = [0, 0, 0]  # [r,p,y]
+		self.max_values = [1024, 1024, 1024, 1024]
+		self.min_values = [0, 0, 0, 0]
 
-        self.output = [0.0, 0.0, 0.0]  # [r,p,y]
+		self.error_check = [0.0, 0.0, 0.0]
+		self.error = [0.0, 0.0, 0.0]  # [r,p,y]
+		self.dif_error = [0.0, 0.0, 0.0]  # [r,p,y]
+		self.sum_error = [0.0, 0.0, 0.0]  # Iterm [r,p,y]
 
-        self.throttle = 0.0
+		self.output = [0.0, 0.0, 0.0]  # [r,p,y]
 
-        # Hint : Add variables for storing previous errors in each axis, like self.prev_values = [0,0,0] where corresponds to [roll, pitch, yaw]
-        #        Add variables for limiting the values like self.max_values = [1024, 1024, 1024, 1024] corresponding to [prop1, prop2, prop3, prop4]
-        #                                                   self.min_values = [0, 0, 0, 0] corresponding to [prop1, prop2, prop3, prop4]
-        #
-        # ----------------------------------------------------------------------------------------------------------
+		self.throttle = 0.0
 
-        # # This is the sample time in which you need to run pid. Choose any time which you seem fit. Remember the stimulation step time is 50 ms
-        self.sample_time = 20  # in seconds
 
-        # Publishing /edrone/pwm, /roll_error, /pitch_error, /yaw_error
-        self.pwm_pub = rospy.Publisher("/edrone/pwm", prop_speed, queue_size=1)
-        # ------------------------Add other ROS Publishers here-----------------------------------------------------
-        self.roll_pub = rospy.Publisher("/roll_error", Float32, queue_size=1)
-        self.pitch_pub = rospy.Publisher("/pitch_error", Float32, queue_size=1)
-        self.yaw_pub = rospy.Publisher("/yaw_error", Float32, queue_size=1)
-
-        self.theta_pos_pub = rospy.Publisher("/theta_pos", Float32, queue_size=1)
-
-        # -----------------------------------------------------------------------------------------------------------
-
-        # Subscribing to /drone_command, imu/data, /pid_tuning_roll, /pid_tuning_pitch, /pid_tuning_yaw
-        rospy.Subscriber("/drone_command", edrone_cmd, self.drone_command_callback)
-        rospy.Subscriber("/edrone/imu/data", Imu, self.imu_callback)
-        #rospy.Subscriber("/pid_tuning_roll", PidTune, self.roll_set_pid)
-        # -------------------------Add other ROS Subscribers here----------------------------------------------------
-        # rospy.Subscriber("/pid_tuning_pitch", PidTune, self.pitch_set_pid)
-        # rospy.Subscriber("/pid_tuning_yaw", PidTune, self.yaw_set_pid)
-        # ------------------------------------------------------------------------------------------------------------
+		self.height = 0.0
 
-        time.sleep(2.5)
-
-        print("Initialised... OK")
 
-
-
-    # Imu callback function
-    # The function gets executed each time when imu publishes /edrone/imu/data
+		# Hint : Add variables for storing previous errors in each axis, like self.prev_values = [0,0,0] where corresponds to [roll, pitch, yaw]
+		#        Add variables for limiting the values like self.max_values = [1024, 1024, 1024, 1024] corresponding to [prop1, prop2, prop3, prop4]
+		#                                                   self.min_values = [0, 0, 0, 0] corresponding to [prop1, prop2, prop3, prop4]
+		#
+		# ----------------------------------------------------------------------------------------------------------
 
-    # Note: The imu publishes various Kind of data viz angular velocity, linear acceleration, magnetometer reading (if present),
-    # but here we are interested in the orientation which can be calculated by a complex algorithm called filtering which is not in the scope of this task,
-    # so for your ease, we have the orientation published directly BUT in quaternion format and not in euler angles.
-    # We need to convert the quaternion format to euler angles format to understand the orienataion of the edrone in an easy manner.
-    # Hint: To know the message structure of sensor_msgs/Imu, execute the following command in the terminal
-    # rosmsg show sensor_msgs/Imu
+		# # This is the sample time in which you need to run pid. Choose any time which you seem fit. Remember the stimulation step time is 50 ms
+		self.sample_time = 20  # in seconds
 
-    def imu_callback(self, msg):
+		# Publishing /edrone/pwm, /roll_error, /pitch_error, /yaw_error
+		self.pwm_pub = rospy.Publisher("/edrone/pwm", prop_speed, queue_size=1)
+		# ------------------------Add other ROS Publishers here-----------------------------------------------------
+		self.roll_pub = rospy.Publisher("/roll_error", Float32, queue_size=1)
+		self.pitch_pub = rospy.Publisher("/pitch_error", Float32, queue_size=1)
+		self.yaw_pub = rospy.Publisher("/yaw_error", Float32, queue_size=1)
 
-        self.drone_orientation_quaternion[0] = msg.orientation.x * 180 / math.pi
+		self.theta_pos_pub = rospy.Publisher("/theta_pos", Float32, queue_size=1)
 
-        # --------------------Set the remaining co-ordinates of the drone from msg----------------------------------------------
-        self.drone_orientation_quaternion[1] = msg.orientation.y * 180 / math.pi
-        self.drone_orientation_quaternion[2] = msg.orientation.z * 180 / math.pi
-        self.drone_orientation_quaternion[3] = msg.orientation.w * 180 / math.pi
+		# -----------------------------------------------------------------------------------------------------------
 
-    def drone_command_callback(self, msg):
-        self.setpoint_cmd[0] = msg.rcRoll
-        self.setpoint_cmd[1] = msg.rcPitch
-        self.setpoint_cmd[2] = msg.rcYaw
+		# Subscribing to /drone_command, imu/data, /pid_tuning_roll, /pid_tuning_pitch, /pid_tuning_yaw
+		rospy.Subscriber("/drone_command", edrone_cmd, self.drone_command_callback)
+		rospy.Subscriber("/edrone/imu/data", Imu, self.imu_callback)
+		#rospy.Subscriber("/pid_tuning_roll", PidTune, self.roll_set_pid)
+		# -------------------------Add other ROS Subscribers here----------------------------------------------------
+		# rospy.Subscriber("/pid_tuning_pitch", PidTune, self.pitch_set_pid)
+		# rospy.Subscriber("/pid_tuning_yaw", PidTune, self.yaw_set_pid)
+		# ------------------------------------------------------------------------------------------------------------
 
-        # Throttle
-        self.throttle = msg.rcThrottle
 
-        # aux1 to enable/disable the drone
-        self.aux1 = msg.aux1
+		rospy.Subscriber("/edrone/range_finder_bottom", LaserScan, self.range_finder_bottom_callback)
 
-        # ---------------------------------------------------------------------------------------------------------------
 
-    # Callback function for /pid_tuning_roll
-    # This function gets executed each time when /tune_pid publishes /pid_tuning_roll
-    def roll_set_pid(self, roll):
-        # This is just for an example. You can change the ratio/fraction value accordingly
-        self.Kp[0] = roll.Kp * 3.2
-        self.Ki[0] = roll.Ki * 0.002
-        self.Kd[0] = roll.Kd * 0.8
+		time.sleep(2.5)
 
-    # ----------------------------Define callback function like roll_set_pid to tune pitch, yaw--------------
-    # Callback function for /pid_tuning_pitch
-    def pitch_set_pid(self, pitch):
-        self.Kp[1] = pitch.Kp * 1.6
-        self.Ki[1] = pitch.Ki * 0.002
-        self.Kd[1] = pitch.Kd * 0.8
+		print("Initialised... OK")
 
-    # Callback function for /pid_tuning_yaw
-    def yaw_set_pid(self, yaw):
-        self.Kp[2] = yaw.Kp * 40
-        self.Ki[2] = yaw.Ki * 0.002
-        self.Kd[2] = yaw.Kd * 0.8
 
-    # ----------------------------------------------------------------------------------------------------------------------
 
-    def abs_angle(self, theta):
-        return theta if theta >= 0 else (2*math.pi)+theta
+	# Imu callback function
+	# The function gets executed each time when imu publishes /edrone/imu/data
 
+	# Note: The imu publishes various Kind of data viz angular velocity, linear acceleration, magnetometer reading (if present),
+	# but here we are interested in the orientation which can be calculated by a complex algorithm called filtering which is not in the scope of this task,
+	# so for your ease, we have the orientation published directly BUT in quaternion format and not in euler angles.
+	# We need to convert the quaternion format to euler angles format to understand the orienataion of the edrone in an easy manner.
+	# Hint: To know the message structure of sensor_msgs/Imu, execute the following command in the terminal
+	# rosmsg show sensor_msgs/Imu
 
-    def pid(self):
+	def imu_callback(self, msg):
 
-        if self.aux1 == 2000:
-            # -----------------------------Write the PID algorithm here--------------------------------------------------------------
+		self.drone_orientation_quaternion[0] = msg.orientation.x * 180 / math.pi
 
-            # Steps:
-            #   1. Convert the quaternion format of orientation to euler angles
-            #   2. Convert the setpoin that is in the range of 1000 to 2000 into angles with the limit from -10 degree to 10 degree in euler angles
-            #   3. Compute error in each axis. eg: error[0] = self.setpoint_euler[0] - self.drone_orientation_euler[0], where error[0] corresponds to error in roll...
-            #   4. Compute the error (for proportional), change in error (for derivative) and sum of errors (for integral) in each axis. Refer "Understanding PID.pdf" to understand PID equation.
-            #   5. Calculate the pid output required for each axis. For eg: calcuate self.out_roll, self.out_pitch, etc.
-            #   6. Use this computed output value in the equations to compute the pwm for each propeller. LOOK OUT FOR SIGN (+ or -). EXPERIMENT AND FIND THE CORRECT SIGN
-            #   7. Don't run the pid continously. Run the pid only at the a sample time. self.sampletime defined above is for this purpose. THIS IS VERY IMPORTANT.
-            #   8. Limit the output value and the final command value between the maximum(0) and minimum(1024)range before publishing. For eg : if self.pwm_cmd.prop1 > self.max_values[1]:
-            #                                                                                                                                      self.pwm_cmd.prop1 = self.max_values[1]
-            #   8. Update previous errors.eg: self.prev_error[1] = error[1] where index 1 corresponds to that of pitch (eg)
-            #   9. Add error_sum to use for integral component
+		# --------------------Set the remaining co-ordinates of the drone from msg----------------------------------------------
+		self.drone_orientation_quaternion[1] = msg.orientation.y * 180 / math.pi
+		self.drone_orientation_quaternion[2] = msg.orientation.z * 180 / math.pi
+		self.drone_orientation_quaternion[3] = msg.orientation.w * 180 / math.pi
 
-            # Converting quaternion to euler angles
-            (
-                self.drone_orientation_euler[1],
-                self.drone_orientation_euler[0],
-                self.drone_orientation_euler[2],
-            ) = tf.transformations.euler_from_quaternion(
-                self.drone_orientation_quaternion
-            )
+	def drone_command_callback(self, msg):
+		self.setpoint_cmd[0] = msg.rcRoll
+		self.setpoint_cmd[1] = msg.rcPitch
+		self.setpoint_cmd[2] = msg.rcYaw
 
-            self.theta_pos_pub.publish(self.abs_angle(self.drone_orientation_euler[-1]))
+		# Throttle
+		self.throttle = msg.rcThrottle
 
-            # print(self.drone_orientation_euler)
+		# aux1 to enable/disable the drone
+		self.aux1 = msg.aux1
 
-            # Convertng the range from 1000 to 2000 in the range of -10 degree to 10 degree for roll axis
-            self.setpoint_euler[0] = self.setpoint_cmd[0] * 0.02 - 30
+		# ---------------------------------------------------------------------------------------------------------------
 
-            # Complete the equations for pitch and yaw axis
-            self.setpoint_euler[1] = self.setpoint_cmd[1] * 0.02 - 30
-            self.setpoint_euler[2] = self.setpoint_cmd[2] * 0.02 - 30
 
-            # Also convert the range of 1000 to 2000 to 0 to 1024 for throttle here itslef
-            self.throttle = self.throttle * 1.024 - 1024
+	# range finder bottom callback function
+	def range_finder_bottom_callback(self, msg):
+		self.height = msg.ranges[0] - 0.2
+		self.height = float(self.height)
 
-            # print(self.throttle)
 
-            # Step 3 - Computing error in [roll, pitch, yaw]
-            for i in range(3):
 
-                self.error[i] = self.setpoint_euler[i] - self.drone_orientation_euler[i]
-                #self.error[-1] = 0.0
+	# Callback function for /pid_tuning_roll
+	# This function gets executed each time when /tune_pid publishes /pid_tuning_roll
+	def roll_set_pid(self, roll):
+		# This is just for an example. You can change the ratio/fraction value accordingly
+		self.Kp[0] = roll.Kp * 3.2
+		self.Ki[0] = roll.Ki * 0.002
+		self.Kd[0] = roll.Kd * 0.8
 
-                # print(self.error[i])
+	# ----------------------------Define callback function like roll_set_pid to tune pitch, yaw--------------
+	# Callback function for /pid_tuning_pitch
+	def pitch_set_pid(self, pitch):
+		self.Kp[1] = pitch.Kp * 1.6
+		self.Ki[1] = pitch.Ki * 0.002
+		self.Kd[1] = pitch.Kd * 0.8
 
-                # Step 4 - Computing the error (for proportional), change in error (for derivative) and sum of errors (for integral) in each axis
+	# Callback function for /pid_tuning_yaw
+	def yaw_set_pid(self, yaw):
+		self.Kp[2] = yaw.Kp * 40
+		self.Ki[2] = yaw.Ki * 0.002
+		self.Kd[2] = yaw.Kd * 0.8
 
-                # error (for proportional)
+	# ----------------------------------------------------------------------------------------------------------------------
 
-                # change in error (for derivative)
-                self.dif_error[i] = self.error[i] - self.prev_values[i]
+	def abs_angle(self, theta):
+		return theta if theta >= 0 else (2*math.pi)+theta
 
-                # sum of errors (for integral)
-                self.sum_error[i] = (self.sum_error[i] + self.error[i]) * self.Ki[i]
 
-                # Step 5 - calculating the pid output required for each axis
-                self.output[i] = (
-                    (self.Kp[i] * self.error[i])
-                    + self.sum_error[i]
-                    + (self.Kd[i] * self.dif_error[i])
-                )
+	def pid(self):
 
-                # self.output[i] = self.output[i] * 1.024 - 1024
+		if self.aux1 == 2000:
+			# -----------------------------Write the PID algorithm here--------------------------------------------------------------
 
-                # converting values in range -10 to 10 into values between -1024 to 1024
-                # self.output[i] = self.output[i] * 102.4
+			# Steps:
+			#   1. Convert the quaternion format of orientation to euler angles
+			#   2. Convert the setpoin that is in the range of 1000 to 2000 into angles with the limit from -10 degree to 10 degree in euler angles
+			#   3. Compute error in each axis. eg: error[0] = self.setpoint_euler[0] - self.drone_orientation_euler[0], where error[0] corresponds to error in roll...
+			#   4. Compute the error (for proportional), change in error (for derivative) and sum of errors (for integral) in each axis. Refer "Understanding PID.pdf" to understand PID equation.
+			#   5. Calculate the pid output required for each axis. For eg: calcuate self.out_roll, self.out_pitch, etc.
+			#   6. Use this computed output value in the equations to compute the pwm for each propeller. LOOK OUT FOR SIGN (+ or -). EXPERIMENT AND FIND THE CORRECT SIGN
+			#   7. Don't run the pid continously. Run the pid only at the a sample time. self.sampletime defined above is for this purpose. THIS IS VERY IMPORTANT.
+			#   8. Limit the output value and the final command value between the maximum(0) and minimum(1024)range before publishing. For eg : if self.pwm_cmd.prop1 > self.max_values[1]:
+			#                                                                                                                                      self.pwm_cmd.prop1 = self.max_values[1]
+			#   8. Update previous errors.eg: self.prev_error[1] = error[1] where index 1 corresponds to that of pitch (eg)
+			#   9. Add error_sum to use for integral component
 
-                # print(self.output[i])
-                """if self.output[i] > 80:
-                                                                    self.output[i] = 80
-                                                                elif self.output[i] < -80:
-                                                                    self.output[i] = -80"""
+			# Converting quaternion to euler angles
+			(
+				self.drone_orientation_euler[1],
+				self.drone_orientation_euler[0],
+				self.drone_orientation_euler[2],
+			) = tf.transformations.euler_from_quaternion(
+				self.drone_orientation_quaternion
+			)
 
+			self.theta_pos_pub.publish(self.abs_angle(self.drone_orientation_euler[-1]))
 
-            # Step 6 - Computing the pwm for each propeller
-            # Motor mixing algorithm
-            self.pwm_cmd.prop1 = (
-                self.throttle - self.output[0] + self.output[1] - self.output[2]
-            )  # m1 = t + r + p + y
-            self.pwm_cmd.prop2 = (
-                self.throttle - self.output[0] - self.output[1] + self.output[2]
-            )  # m2 = t - r + p - y
-            self.pwm_cmd.prop3 = (
-                self.throttle + self.output[0] - self.output[1] - self.output[2]
-            )  # m3 = t + r - p - y
-            self.pwm_cmd.prop4 = (
-                self.throttle + self.output[0] + self.output[1] + self.output[2]
-            )  # m4 = t - r - p + y
+			# print(self.drone_orientation_euler)
 
-            # Step 7 - Limiting the output value and the final command value
-            if self.pwm_cmd.prop1 > self.max_values[0]:
-                self.pwm_cmd.prop1 = self.max_values[0]
+			# Convertng the range from 1000 to 2000 in the range of -10 degree to 10 degree for roll axis
+			self.setpoint_euler[0] = self.setpoint_cmd[0] * 0.02 - 30
 
-            if self.pwm_cmd.prop2 > self.max_values[1]:
-                self.pwm_cmd.prop2 = self.max_values[1]
+			# Complete the equations for pitch and yaw axis
+			self.setpoint_euler[1] = self.setpoint_cmd[1] * 0.02 - 30
+			self.setpoint_euler[2] = (self.setpoint_cmd[2] - 1500 ) * math.pi / 500
 
-            if self.pwm_cmd.prop3 > self.max_values[2]:
-                self.pwm_cmd.prop3 = self.max_values[2]
+			# Also convert the range of 1000 to 2000 to 0 to 1024 for throttle here itslef
+			self.throttle = self.throttle * 1.024 - 1024
 
-            if self.pwm_cmd.prop4 > self.max_values[3]:
-                self.pwm_cmd.prop4 = self.max_values[3]
+			# print(self.throttle)
 
-            if self.pwm_cmd.prop1 < self.min_values[0]:
-                self.pwm_cmd.prop1 = self.min_values[0]
+			# Step 3 - Computing error in [roll, pitch, yaw]
+			for i in range(3):
 
-            if self.pwm_cmd.prop2 < self.min_values[1]:
-                self.pwm_cmd.prop2 = self.min_values[1]
+				#if not (self.error_check[-1] < math.radians(1) and self.error_check[-1] > -math.radians(1)):
+				#    self.setpoint_euler[0] = 0
+				#    self.setpoint_euler[1] = 0
 
-            if self.pwm_cmd.prop3 < self.min_values[2]:
-                self.pwm_cmd.prop3 = self.min_values[2]
+				self.error[i] = self.setpoint_euler[i] - self.drone_orientation_euler[i]
+				self.error_check[i] = self.error[i]
+				#self.error[-1] = 0.0
 
-            if self.pwm_cmd.prop4 < self.min_values[3]:
-                self.pwm_cmd.prop4 = self.min_values[3]
+				# print(self.error[i])
 
-            # print(self.pwm_cmd.prop1)
-            # print(self.pwm_cmd.prop2)
-            # print(self.pwm_cmd.prop3)
-            # print(self.pwm_cmd.prop4)
+				if not (self.drone_orientation_euler[0] < math.radians(1) and self.drone_orientation_euler[0] > -math.radians(1)) and not (self.drone_orientation_euler[1] < math.radians(1) and self.drone_orientation_euler[1] > -math.radians(1)) and self.height < 2:
+					self.error[-1] = 0.0
 
-            # Step 8 - Update previous errors
-            for i in range(3):
-                self.prev_values[i] = self.error[i]
+				# Step 4 - Computing the error (for proportional), change in error (for derivative) and sum of errors (for integral) in each axis
 
-            # Step 9 - Add error_sum to use for integral component
+				# error (for proportional)
 
-            # ------------------------------------------------------------------------------------------------------------------------
+				# change in error (for derivative)
+				self.dif_error[i] = self.error[i] - self.prev_values[i]
 
-        else:
-            self.pwm_cmd.prop1 = 0.0
-            self.pwm_cmd.prop2 = 0.0
-            self.pwm_cmd.prop3 = 0.0
-            self.pwm_cmd.prop4 = 0.0
+				# sum of errors (for integral)
+				self.sum_error[i] = (self.sum_error[i] + self.error[i]) * self.Ki[i]
 
-        self.pwm_pub.publish(self.pwm_cmd)
+				# Step 5 - calculating the pid output required for each axis
+				self.output[i] = (
+					(self.Kp[i] * self.error[i])
+					+ self.sum_error[i]
+					+ (self.Kd[i] * self.dif_error[i])
+				)
 
-        self.roll_pub.publish(self.error[0])
-        self.pitch_pub.publish(self.error[1])
-        self.yaw_pub.publish(self.error[2])
+				# self.output[i] = self.output[i] * 1.024 - 1024
+
+				# converting values in range -10 to 10 into values between -1024 to 1024
+				# self.output[i] = self.output[i] * 102.4
+
+				# print(self.output[i])
+				"""if self.output[i] > 80:
+																	self.output[i] = 80
+																elif self.output[i] < -80:
+																	self.output[i] = -80"""
+
+
+			# Step 6 - Computing the pwm for each propeller
+			# Motor mixing algorithm
+			self.pwm_cmd.prop1 = (
+				self.throttle - self.output[0] + self.output[1] - self.output[2]
+			)  # m1 = t + r + p + y
+			self.pwm_cmd.prop2 = (
+				self.throttle - self.output[0] - self.output[1] + self.output[2]
+			)  # m2 = t - r + p - y
+			self.pwm_cmd.prop3 = (
+				self.throttle + self.output[0] - self.output[1] - self.output[2]
+			)  # m3 = t + r - p - y
+			self.pwm_cmd.prop4 = (
+				self.throttle + self.output[0] + self.output[1] + self.output[2]
+			)  # m4 = t - r - p + y
+
+			# Step 7 - Limiting the output value and the final command value
+			if self.pwm_cmd.prop1 > self.max_values[0]:
+				self.pwm_cmd.prop1 = self.max_values[0]
+
+			if self.pwm_cmd.prop2 > self.max_values[1]:
+				self.pwm_cmd.prop2 = self.max_values[1]
+
+			if self.pwm_cmd.prop3 > self.max_values[2]:
+				self.pwm_cmd.prop3 = self.max_values[2]
+
+			if self.pwm_cmd.prop4 > self.max_values[3]:
+				self.pwm_cmd.prop4 = self.max_values[3]
+
+			if self.pwm_cmd.prop1 < self.min_values[0]:
+				self.pwm_cmd.prop1 = self.min_values[0]
+
+			if self.pwm_cmd.prop2 < self.min_values[1]:
+				self.pwm_cmd.prop2 = self.min_values[1]
+
+			if self.pwm_cmd.prop3 < self.min_values[2]:
+				self.pwm_cmd.prop3 = self.min_values[2]
+
+			if self.pwm_cmd.prop4 < self.min_values[3]:
+				self.pwm_cmd.prop4 = self.min_values[3]
+
+			# print(self.pwm_cmd.prop1)
+			# print(self.pwm_cmd.prop2)
+			# print(self.pwm_cmd.prop3)
+			# print(self.pwm_cmd.prop4)
+
+			# Step 8 - Update previous errors
+			for i in range(3):
+				self.prev_values[i] = self.error[i]
+
+			# Step 9 - Add error_sum to use for integral component
+
+			# ------------------------------------------------------------------------------------------------------------------------
+
+		else:
+			self.pwm_cmd.prop1 = 0.0
+			self.pwm_cmd.prop2 = 0.0
+			self.pwm_cmd.prop3 = 0.0
+			self.pwm_cmd.prop4 = 0.0
+
+		self.pwm_pub.publish(self.pwm_cmd)
+
+		self.roll_pub.publish(self.error[0])
+		self.pitch_pub.publish(self.error[1])
+		self.yaw_pub.publish(self.error[2])
 
 
 if __name__ == "__main__":
 
-    e_drone = Edrone()
-    r = rospy.Rate(
-        e_drone.sample_time
-    )  # specify rate in Hz based upon your desired PID sampling time, i.e. if desired sample time is 33ms specify rate as 30Hz
-    while not rospy.is_shutdown():
-        e_drone.pid()
-        r.sleep()
+	e_drone = Edrone()
+	r = rospy.Rate(
+		e_drone.sample_time
+	)  # specify rate in Hz based upon your desired PID sampling time, i.e. if desired sample time is 33ms specify rate as 30Hz
+	while not rospy.is_shutdown():
+		e_drone.pid()
+		r.sleep()

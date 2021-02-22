@@ -9,6 +9,7 @@ class mission:
 		self.end = None
 		self.distance = 0.0
 		self.objective = None
+		self.status = False
 
 	def __repr__(self):
 		return str(self.distance) + " , " + str(self.objective) + " , " + str(self.start) + " , " + str(self.end)
@@ -16,6 +17,9 @@ class mission:
 class mission_planner:
 	def __init__(self):
 		self.mission_list = []
+		self.mission_plan = []
+		self.mission_matrix = None
+		self.no_of_missions = None
 
 		# to calculate box location
 		self.A1_pos = [18.9998102845, 72.000142461, 16.757981] # lat, lon, alt
@@ -25,6 +29,10 @@ class mission_planner:
 		self.return_grid = "XYZ"
 
 		self.destination_list = []
+
+	def mission_matrix_init(self):
+		self.no_of_missions = len(self.mission_list)
+		self.mission_matrix = [[0.0]*self.no_of_missions for i in range(self.no_of_missions)]
 
 	# to convert distance in meters to latitute
 	def m_to_lat(self, m):
@@ -107,18 +115,30 @@ class mission_planner:
 			
 
 		'''for item in new_list:
-									print(item)
+				print(item)
 						
-								print("\n--\n")'''
+			print("\n--\n")'''
 
 		return deepcopy(new_list)
 
 	def use_timestone(self):
-		return True
+		self.mission_matrix_init()
+		self.mission_matrix_populate()
+		return self.mission_matrix
 
+	def mission_matrix_populate(self):
+		for i in range(self.no_of_missions):
+			for j in range(self.no_of_missions):
+				p1 = self.mission_list[i].end
+				p2 = self.mission_list[j].start
+				self.mission_matrix[i][j] = self.linear_distance(p1[0],p1[1],p2[0],p2[1])
 
 	def dr_strange(self):
 		return self.use_timestone()
+
+
+	def score_factor(self, distance, Mission):
+		return mission.distance/distance
 
 
 	def cell_to_coordinates(self, cell_ID, delivery):
@@ -134,7 +154,12 @@ class mission_planner:
 		return [lat, lon, alt]
 
 
+	# calculating linear distance
+	# d**2 = (x2 - x1)**2 + (y2 - y1)**2
+	def linear_distance(self,x1,y1,x2,y2):
+		return math.sqrt(self.lat_to_m(x2 - x1)**2 + self.lon_to_m(y2 - y1)**2)
 
+	
 	def add(self, objective, start, end):
 		# item is [objective, start, end]
 		m = mission()
@@ -142,9 +167,7 @@ class mission_planner:
 		m.start = deepcopy(start)
 		m.end = deepcopy(end)
 
-		# calculating linear distance
-		# d**2 = (x2 - x1)**2 + (y2 - y1)**2
-		m.distance = math.sqrt((self.lat_to_m(end[0] - start[0]))**2 + (self.lon_to_m(end[1] - start[1]))**2)
+		m.distance = self.linear_distance(start[0],start[1],end[0],end[1])
 
 		self.mission_list.append(m)
 
@@ -196,11 +219,12 @@ print("Calculating destinations map...")
 
 print("Done.\n")
 
-destinations = mp.get_destination_list()
+#destinations = mp.get_destination_list()
 
-for destination in destinations:
-	print(destination)
+#for destination in destinations:
+#	print(destination)
 
-print("\n")
+print("\nCreating mission matrix...")
 
-print(mp.dr_strange())
+for i in mp.dr_strange():
+	print(i)

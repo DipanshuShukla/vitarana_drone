@@ -98,6 +98,7 @@ class Control:
 		self.new_theta = None
 		self.yaw_timer = None
 		self.theta_pos = 0.0
+		self.prev_set_point = None
 		
 
 		# Drone commands
@@ -206,9 +207,14 @@ class Control:
 
 	# destination coordinates callback
 	def destination_callback(self, msg):
+		temp = deepcopy(self.destination)
 		self.destination[0] = msg.latitude
 		self.destination[1] = msg.longitude
 		self.destination[2] = msg.altitude
+
+		if not temp == self.destination:
+			self.prev_set_point = deepcopy(temp)
+
 		#print(self.destination)
 
 
@@ -291,13 +297,16 @@ class Control:
 		self.drone_position[1] = msg.longitude
 		self.drone_position[2] = msg.altitude
 
+		if not self.prev_set_point:
+			self.prev_set_point = deepcopy(self.drone_position)
+
 		if self.Z_m:
 			self.Z_m.data = float(self.drone_position[-1] - deepcopy(self.destination)[-1])
 			if self.destination_cmd == "Drop":
 				self.Z_m.data -= 1
 
-		self.r,self.new_theta = self.polar(self.lon_to_x(self.destination[1] - self.drone_position[1]), self.lat_to_x(self.destination[0] - self.drone_position[0]))
-		if self.theta is None:
+		self.r,self.new_theta = self.polar(self.lon_to_x(self.destination[1] - self.prev_set_point[1]), self.lat_to_x(self.destination[0] - self.prev_set_point[0]))
+		if self.theta is None or True:
 			self.theta = self.new_theta
 
 		# print(self.drone_position)
@@ -383,6 +392,10 @@ class Control:
 
 
 			if self.destination_cmd == "Reach": 
+				self.mission_status.data = True
+
+			if self.destination_cmd == "Return": 
+				self.drop_package()
 				self.mission_status.data = True
 
 		elif self.destination_cmd == "Drop" and self.marker_scan.data:
@@ -680,17 +693,17 @@ class Control:
 			#else:
 			#   self.p_error_limit = 0.00002
 
-			self.p_error_limit = [2.5/110692.0702932625, 2.5/105292.0089353767, 1.4]
+			self.p_error_limit = [10/110692.0702932625, 10/105292.0089353767, 1.4]
 
 			if (self.error[2] > -0.2 and self.error[2] < 0.2) and not self.drop_pos:
 				self.p_error_limit = [10/110692.0702932625, 10/105292.0089353767, 1.4]
 
 			if (not ((self.error[0] > -0.000004517 and self.error[0] < 0.000004517) or (self.error[1] > -0.0000047487 and self.error[1] < 0.0000047487))) or self.obstacle_encountered() or (self.distances[4] < 6 if not self.package_picked else False):
 				
-				self.p_error_limit = [2.5/110692.0702932625, 2.5/105292.0089353767, 1.4]
+				self.p_error_limit = [4/110692.0702932625, 4/105292.0089353767, 1.4]
 
 			elif self.marker_scan.data and self.destination_cmd == "Drop" and self.marker_visibility:
-				self.p_error_limit = [2.5/110692.0702932625, 2.5/105292.0089353767, 1.4]
+				self.p_error_limit = [4/110692.0702932625, 4/105292.0089353767, 1.4]
 
 			if self.drop_pos:
 				self.p_error_limit[-1] = 0.5
@@ -743,7 +756,7 @@ class Control:
 			self.control_cmd.rcPitch = self.output[1] + 1500
 			self.control_cmd.rcThrottle = self.output[2] + 1500
 			
-			self.control_cmd.rcYaw = (self.theta * 500 / 180 + 1500) if self.using_polar and self.distances[-1] > 2 else 1500
+			self.control_cmd.rcYaw = (math.radians(self.theta) * 500 / math.pi + 1500) if self.using_polar and self.distances[-1] > 2 else 1500
 			#self.control_cmd.rcYaw = 150
 
 			# print(self.output)

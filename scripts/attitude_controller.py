@@ -226,7 +226,7 @@ class Edrone:
                 self.setpoint_euler[i] = self.setpoint_cmd[i] * 0.02 - 30
                 self.setpoint_euler[i] *= 4
 
-            self.setpoint_euler[2] = (self.setpoint_cmd[2] - 1500 ) * 180 / 500
+            self.setpoint_euler[2] = (self.setpoint_cmd[2] - 1500 ) * math.pi / 500
 
 
             for i in range(3):
