@@ -60,13 +60,13 @@ class mission_planner:
 
 				start = deepcopy(item.start)
 				start1 = deepcopy(start)
-				start1[-1] +=6
+				start1[-1] +=14
 				start1.append("Reach")
 				start.append("Pickup")
 
 				end = deepcopy(item.end)
 				end1 = deepcopy(end)
-				end1[-1] +=6
+				end1[-1] +=14
 				end1.append("Reach")
 				end.append("Drop" if not item.objective == "RETURN" else "Return")
 
@@ -225,7 +225,7 @@ class destination:
 			self.init_pos[2] = msg.altitude
 
 			first_pos = deepcopy(self.init_pos)
-			first_pos[-1] += 4
+			first_pos[-1] += 12
 			first_pos.append("Reach")
 
 			self.destination_list.append(first_pos)
