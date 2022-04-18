@@ -18,7 +18,6 @@ import cv2, time
 import numpy as np
 import rospy
 
-from pyzbar import pyzbar
 
 from std_msgs.msg import Bool, Float32
 from geometry_msgs.msg import Vector3
@@ -80,32 +79,6 @@ class image_proc():
 	def qr_scan(self):
 		
 		# TODO decode qr
-
-		if self.scan:
-
-			decoded_image = pyzbar.decode(self.img)
-			#print(decoded_image)
-
-			# checking if qr is exist
-
-			if len(decoded_image) > 0:
-
-				self.qr_status = True
-
-				raw_data = decoded_image[0].data
-				print(raw_data)
-				coordinates = raw_data.split(",")
-
-				# sending destination coordinates
-
-				self.destination_coordinates.x = float(coordinates[0])
-				self.destination_coordinates.y = float(coordinates[1])
-				self.destination_coordinates.z = float(coordinates[2])
-
-			# publishing required results
-
-		self.coordinates_pub.publish(self.destination_coordinates)
-		self.qr_status_pub.publish(self.qr_status)
 
 
 if __name__ == '__main__':
